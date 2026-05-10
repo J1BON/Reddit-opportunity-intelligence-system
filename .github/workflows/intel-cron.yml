@@ -17,6 +17,14 @@ on:
         options:
           - "false"
           - "true"
+      test_alert:
+        description: "Send a one-off test alert to Discord (verifies bot token + channel ID), then skip the fetch."
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 # Never overlap runs — Reddit's unauthenticated rate limit is per-IP and the
 # next cron tick must wait for the previous one to finish committing the DB.
@@ -52,7 +60,38 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
+      - name: Send Discord test alert (manual dispatch only)
+        if: github.event_name == 'workflow_dispatch' && inputs.test_alert == 'true'
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_ALERT_CHANNEL_ID: ${{ secrets.DISCORD_ALERT_CHANNEL_ID }}
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          python - <<'PY'
+          import os, sys
+          from reddit_intel.alerts import notify_alert_destinations
+          have_bot = bool(os.getenv("DISCORD_BOT_TOKEN")) and bool(os.getenv("DISCORD_ALERT_CHANNEL_ID"))
+          have_hook = bool(os.getenv("ALERT_WEBHOOK_URL"))
+          print(f"[test] DISCORD_BOT_TOKEN present: {have_bot}")
+          print(f"[test] ALERT_WEBHOOK_URL present: {have_hook}")
+          if not (have_bot or have_hook):
+              print("[test] No alert destinations configured — set the secrets in repo settings.")
+              sys.exit(1)
+          notify_alert_destinations(
+              "Reddit Intel cron — test alert from GitHub Actions. "
+              "If you can read this, hosting and Discord wiring are correct."
+          )
+          print("[test] Sent. Check your Discord channel within ~5 seconds.")
+          PY
+
+      - name: Skip fetch cycle when test_alert was requested
+        if: github.event_name == 'workflow_dispatch' && inputs.test_alert == 'true'
+        run: |
+          echo "::notice::test_alert=true — skipping fetch and report steps for this run."
+
       - name: Run one fetch cycle
+        if: github.event_name != 'workflow_dispatch' || inputs.test_alert != 'true'
         env:
           REDDIT_NO_AUTH: "1"
           REDDIT_USER_AGENT: "USAOpportunityIntelBot/1.0 (GitHub Actions cron; +https://github.com/${{ github.repository }})"
@@ -69,7 +108,7 @@ jobs:
           python run.py --once
 
       - name: Generate report (only on manual dispatch with report=true)
-        if: github.event_name == 'workflow_dispatch' && inputs.report == 'true'
+        if: github.event_name == 'workflow_dispatch' && inputs.report == 'true' && inputs.test_alert != 'true'
         env:
           REDDIT_NO_AUTH: "1"
           REDDIT_USER_AGENT: "USAOpportunityIntelBot/1.0 (GitHub Actions cron; +https://github.com/${{ github.repository }})"
@@ -85,6 +124,7 @@ jobs:
       # snapshot the DB/reports this run produced, hard-reset to origin/main,
       # copy the snapshot back on top, commit once, push (with retries).
       - name: Commit state changes back to the repo
+        if: github.event_name != 'workflow_dispatch' || inputs.test_alert != 'true'
         run: |
           set -e
           git config user.name  "github-actions[bot]"
