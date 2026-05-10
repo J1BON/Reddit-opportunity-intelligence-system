@@ -126,6 +126,10 @@ jobs:
           POSTS_PER_SUB_FETCH: "25"
           FETCH_COMMENT_SAMPLES: "0"
           COMMENT_SAMPLE_LIMIT: "20"
+          # Lowered thresholds: "catch everything" mode.
+          # Reward >= $5 OR opportunity-score >= 55 OR gem-score >= 55.
+          ALERT_MIN_PAYOUT_USD: "5"
+          ALERT_MIN_OPPORTUNITY_SCORE: "55"
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           DISCORD_ALERT_CHANNEL_ID: ${{ secrets.DISCORD_ALERT_CHANNEL_ID }}
           ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
