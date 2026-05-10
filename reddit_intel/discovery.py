@@ -132,7 +132,9 @@ def run_discovery_cycle(reddit: Any, db: Database) -> dict[str, int]:
                 # Discovery results are noisy and we want low per-post latency
                 # (we've already burnt a /search.json request per query, so
                 # be miserly with comment fetches).
-                cid = process_submission(sub, db, fetch_comments=False)
+                cid = process_submission(
+                    sub, db, fetch_comments=False, from_site_search=True
+                )
             except Exception as ex:  # noqa: BLE001
                 low = str(ex).lower()
                 if (

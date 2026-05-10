@@ -258,9 +258,9 @@ CHECK_URL_INTEGRITY = os.getenv("CHECK_URL_INTEGRITY", "0").strip().lower() in (
 DISCOVERY_ENABLED = os.getenv("DISCOVERY_ENABLED", "1").strip().lower() in (
     "1", "true", "yes", "on",
 )
-DISCOVERY_QUERIES_PER_TICK = max(1, int(os.getenv("DISCOVERY_QUERIES_PER_TICK", "5")))
-DISCOVERY_RESULTS_PER_QUERY = max(1, min(100, int(os.getenv("DISCOVERY_RESULTS_PER_QUERY", "25"))))
-DISCOVERY_TIME_FILTER = os.getenv("DISCOVERY_TIME_FILTER", "hour").strip().lower()
+DISCOVERY_QUERIES_PER_TICK = max(1, int(os.getenv("DISCOVERY_QUERIES_PER_TICK", "8")))
+DISCOVERY_RESULTS_PER_QUERY = max(1, min(100, int(os.getenv("DISCOVERY_RESULTS_PER_QUERY", "30"))))
+DISCOVERY_TIME_FILTER = os.getenv("DISCOVERY_TIME_FILTER", "day").strip().lower()
 
 # Each query is a high-signal phrase from the money-making vocabulary.
 # We rotate through these across cron ticks so every query gets exercised
@@ -302,6 +302,17 @@ DISCOVERY_QUERIES: tuple[str, ...] = (
     "referral train",
     "boosted referral",
     "limited time promo",
+    "my referral",
+    "use my referral",
+    "sign up for",
+    "new user bonus",
+    "cash app tag",
+    "venmo",
+    "paypal",
+    "gift card",
+    "swagbucks",
+    "survey",
+    "paid study",
 )
 
 REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID", "")

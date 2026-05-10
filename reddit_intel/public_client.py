@@ -215,7 +215,9 @@ class PublicReddit:
             "sort": sort,
             "t": t,
             "limit": str(int(limit)),
-            "restrict_sr": "",
+            # Must be false for site-wide search; empty string is treated as
+            # ambiguous and Reddit often returns an empty listing.
+            "restrict_sr": "false",
             "include_over_18": "on",
             "raw_json": "1",
         }

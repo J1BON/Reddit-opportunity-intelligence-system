@@ -110,7 +110,39 @@ def _should_ingest(text: str) -> bool:
     if extract_money_amounts(text):
         return True
     low = text.lower()
-    return "http" in low and ("refer" in low or "signup" in low or "promo" in low)
+    if "http" in low and ("refer" in low or "signup" in low or "promo" in low):
+        return True
+    # Common phrasing that does not always match KEYWORD_PHRASES verbatim.
+    if any(
+        p in low
+        for p in (
+            "sign up",
+            "sign-up",
+            "sign up bonus",
+            "refferal",
+            "invite link",
+            "invitation link",
+            "use my link",
+            "my link",
+            "referral link",
+            "promo link",
+            "bonus link",
+            "cash app",
+            "venmo",
+            "paypal",
+            "payout",
+            "get paid",
+            "paid instantly",
+            "earn money",
+            "side hustle",
+            "passive income",
+        )
+    ):
+        return True
+    # Bare dollar amounts (e.g. "$50 for signing up") without our keyword list.
+    if re.search(r"\$\s*\d", text or ""):
+        return True
+    return False
 
 
 def _ai_summary(title: str, body: str, offer_type: str) -> str:
@@ -165,6 +197,8 @@ def process_submission(
     db: Database,
     fetch_comments: bool = True,
     comment_sample_cap: int | None = None,
+    *,
+    from_site_search: bool = False,
 ) -> str | None:
     subreddit = str(sub.subreddit).lower()
     if subreddit in {x.lower() for x in EXCLUDED_SUBREDDITS}:
@@ -173,7 +207,9 @@ def process_submission(
     title = sub.title or ""
     body = getattr(sub, "selftext", "") or ""
     text = f"{title}\n{body}"
-    if not _should_ingest(text):
+    # Site-wide /search hits are already curated by the query string; do not
+    # drop them with the same keyword gate used for raw /new listings.
+    if not from_site_search and not _should_ingest(text):
         return None
     if USA_ONLY_STRICT and geo_excludes_usa(text):
         return None
