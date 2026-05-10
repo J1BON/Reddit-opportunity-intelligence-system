@@ -804,14 +804,34 @@ def _maybe_fire_priority_override_alert(db: Database, fields: dict[str, Any]) ->
     db.log_alert(cid, payload, alert_kind="priority_override")
 
 
+def _shard_subs(ranked: list[str], hot_count: int = 12, shards: int = 3) -> list[str]:
+    """Hot-tier subs every tick; cold-tier rotated across shards.
+
+    The cron runs every 10 min. With hot_count=12 + shards=3, every sub in the
+    top 12 by quality_score is hit every tick (worst-case 10 min latency), and
+    each cold sub is hit once per 3 ticks (worst-case 30 min latency).
+    Total fetches per tick stay close to the pre-shard 28 — no extra API load.
+    """
+    if shards <= 0 or hot_count <= 0:
+        return list(ranked)
+    hot = list(ranked[:hot_count])
+    cold = list(ranked[hot_count:])
+    if not cold:
+        return hot
+    shard = int(time.time() // 600) % shards
+    cold_slice = [s for i, s in enumerate(cold) if i % shards == shard]
+    return hot + cold_slice
+
+
 def run_fetch_cycle(reddit: "praw.Reddit", db: Database) -> int:
     th = get_throttle()
     th.load_from_db(db)
     th.decay_tick_at_cycle_start()
 
-    ranked = db.rank_subreddits_for_fetch(list(MONITORED_SUBREDDITS))
+    ranked_full = db.rank_subreddits_for_fetch(list(MONITORED_SUBREDDITS))
+    ranked = _shard_subs(ranked_full)
     frac = th.deferral_fraction()
-    keep_n = max(16, int(len(ranked) * (1.0 - frac)))
+    keep_n = max(min(16, len(ranked)), int(len(ranked) * (1.0 - frac)))
 
     recovery: list[str] = []
     if th.api_pressure_score < 44:

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Reddit Opportunity Intel</title>
+<meta name="description" content="Live dashboard of USA-eligible Reddit referral, signup, and bonus opportunities, scored and deduped." />
+<link rel="stylesheet" href="styles.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23ff4500'/%3E%3Ctext x='32' y='44' font-size='40' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'%3E%24%3C/text%3E%3C/svg%3E" />
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <span class="logo">$</span>
+    <div>
+      <h1>Reddit Opportunity Intel</h1>
+      <div class="sub" id="status-line">Loading…</div>
+    </div>
+  </div>
+  <div class="meta">
+    <div class="stat"><span class="num" id="stat-total">—</span><span class="lbl">offers</span></div>
+    <div class="stat"><span class="num" id="stat-shown">—</span><span class="lbl">shown</span></div>
+    <div class="stat"><span class="num" id="stat-updated">—</span><span class="lbl">updated</span></div>
+  </div>
+</header>
+
+<section class="controls">
+  <div class="row">
+    <input
+      type="search"
+      id="q"
+      placeholder="Search company, domain, summary, subreddit…"
+      autocomplete="off"
+      spellcheck="false"
+    />
+    <select id="type"><option value="">All types</option></select>
+    <select id="sort">
+      <option value="latest_seen_ts">Latest seen</option>
+      <option value="opportunity">Opportunity score</option>
+      <option value="gem">Hidden-gem score</option>
+      <option value="trust">Trust score</option>
+      <option value="reward_usd">Reward $</option>
+      <option value="mentions">Mentions</option>
+      <option value="first_mover">First-mover score</option>
+      <option value="first_seen_ts">First seen</option>
+    </select>
+  </div>
+  <div class="row small">
+    <label>Min reward $ <input type="number" id="min-reward" min="0" step="1" value="0" /></label>
+    <label>Min trust <input type="number" id="min-trust" min="0" max="100" step="1" value="0" /></label>
+    <label>Max scam <input type="number" id="max-scam" min="0" max="100" step="1" value="100" /></label>
+    <label class="chk"><input type="checkbox" id="urgent-only" /> urgent only</label>
+    <label class="chk"><input type="checkbox" id="hide-saturated" /> hide saturated (≥ 70)</label>
+    <label class="chk"><input type="checkbox" id="hide-scammy" checked /> hide scammy (≥ 60)</label>
+    <button id="reset" type="button">Reset</button>
+  </div>
+  <div class="row chips" id="type-chips"></div>
+</section>
+
+<main id="grid"></main>
+
+<footer class="foot">
+  <span>
+    Static snapshot from
+    <a href="https://github.com/" id="repo-link" target="_blank" rel="noopener">this repo</a>
+    — refreshes every minute. Cron updates every 10 min.
+  </span>
+  <span class="right" id="gen-stamp"></span>
+</footer>
+
+<template id="card-tpl">
+  <article class="card" data-id="">
+    <header class="card-h">
+      <div class="title">
+        <span class="fire" aria-hidden="true"></span>
+        <span class="company"></span>
+        <span class="reward"></span>
+      </div>
+      <div class="badges"></div>
+    </header>
+    <div class="scores">
+      <span title="Opportunity score 0–100">Opp <b class="s-opp"></b></span>
+      <span title="Trust score 0–100">Trust <b class="s-trust"></b></span>
+      <span title="Hidden-gem score 0–100">Gem <b class="s-gem"></b></span>
+      <span title="Scam probability 0–100">Scam <b class="s-scam"></b></span>
+      <span title="First-mover score 0–100">FM <b class="s-fm"></b></span>
+      <span title="Mentions across subs">× <b class="s-mentions"></b></span>
+    </div>
+    <p class="summary"></p>
+    <div class="links"></div>
+    <details class="more">
+      <summary>Details</summary>
+      <div class="detail-grid"></div>
+    </details>
+    <footer class="card-f">
+      <span class="when"></span>
+      <span class="subs"></span>
+    </footer>
+  </article>
+</template>
+
+<script src="app.js" defer></script>
+</body>
+</html>

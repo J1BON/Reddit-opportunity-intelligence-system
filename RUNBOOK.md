@@ -32,8 +32,39 @@ This is **not** real-time Reddit firehose access; it uses Reddit’s API with a 
 
 > **Want 24/7 alerts without leaving your PC on?** See
 > **[`DEPLOY_GITHUB_ACTIONS.md`](DEPLOY_GITHUB_ACTIONS.md)** — runs this bot on
-> a free GitHub Actions cron every 30 minutes, posts hits to your Discord, no
+> a free GitHub Actions cron every 10 minutes, posts hits to your Discord, no
 > credit card, no VPS, no VPN required (Actions runners aren't blocked).
+> The same cron also publishes a **free static web dashboard** at
+> `https://<your-user>.github.io/<your-repo>/` so you can browse every offer
+> without scrolling Discord.
+
+---
+
+## Web dashboard (GitHub Pages)
+
+When the cron runs, it writes `docs/offers.json` (a slimmed snapshot of the
+`canonical_offers` table) and commits it. GitHub Pages serves `docs/index.html`
+which fetches `offers.json` client-side every 60 seconds.
+
+To enable Pages on a new fork:
+
+1. Repo → **Settings** → **Pages**
+2. Source: **Deploy from a branch**
+3. Branch: **`main`**, Folder: **`/docs`** → **Save**
+
+After ~60–90 seconds, your dashboard is live. It auto-rebuilds every cron tick.
+
+Local preview without GitHub Pages:
+
+```powershell
+py -3 -m scripts.export_dashboard            # writes docs/offers.json
+py -3 -m http.server 8765 --directory docs   # browse http://127.0.0.1:8765/
+```
+
+The dashboard is **fully static** — no backend, no DB connection from the
+browser. To change layout / colors, edit `docs/index.html`, `docs/styles.css`,
+`docs/app.js`. To change which fields ship to the UI, edit `_row_to_offer()`
+in `scripts/export_dashboard.py`.
 
 ---
 

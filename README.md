@@ -2,11 +2,20 @@
 
 Free, 24/7 bot that watches money-making subreddits for new referral, signup,
 and bonus offers, scores them for trust / scam-risk / hidden-gem potential,
-and posts USA-eligible opportunities into a Discord channel within minutes
-of them being posted on Reddit.
+and:
+
+- **Posts USA-eligible opportunities into a Discord channel** within minutes
+  of them being posted on Reddit.
+- **Publishes a live web dashboard** of every offer the bot has ever seen,
+  hosted free on GitHub Pages — so you don't have to scroll Discord.
 
 Runs entirely on **free** GitHub Actions cron — no server, no VPS, no
 credit card, no Reddit API key, no Reddit account.
+
+> **Web dashboard:** once GitHub Pages is enabled (one click — see step 8
+> below), the latest snapshot lives at
+> `https://<your-user>.github.io/<your-repo>/` and refreshes itself every
+> minute. New offers appear within ~2 minutes of being detected.
 
 ---
 
@@ -43,27 +52,33 @@ offer so the same bonus doesn't spam the channel.
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────┐
-│  GitHub Actions cron — fires every 30 minutes, 24/7                      │
+│  GitHub Actions cron — fires every 10 minutes, 24/7                      │
 ├──────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
-│   1. Pulls latest /new from 28 monitored subreddits                      │
-│      (Reddit's public JSON, no auth, throttled to ~10 req/min)           │
+│   1. Picks which subs to scan this tick (priority sharding):             │
+│        • top 12 highest-quality subs → every tick (10 min latency)       │
+│        • remaining ~16 subs        → 1 of 3 shards per tick (~30 min)    │
+│      Same total Reddit requests as the old 30-min cron, but hot subs     │
+│      get checked 3× more often.                                          │
 │                                                                          │
-│   2. Filters out non-USA offers (UK only / Canada only / EU only / ...)  │
+│   2. Pulls /new from each chosen sub (Reddit's public JSON, no auth,     │
+│      throttled to ~10 req/min, with adaptive backoff on 429)             │
 │                                                                          │
-│   3. Ingests every post that mentions money, a referral link,            │
+│   3. Filters out non-USA offers (UK only / Canada only / EU only / ...)  │
+│                                                                          │
+│   4. Ingests every post that mentions money, a referral link,            │
 │      a promo code, or an early-signal phrase                             │
 │                                                                          │
-│   4. Scores each one:                                                    │
+│   5. Scores each one:                                                    │
 │      • trust_score (anchor brand, payout-confirmation phrases, ...)      │
 │      • scam_probability (suspicious domains, gambling-investment-speak)  │
 │      • hidden_gem_score (unknown brand × decent reward × low saturation) │
 │      • opportunity_score (composite — used for ranking)                  │
 │      • first_mover_score (saturation × novelty × engagement)             │
 │                                                                          │
-│   5. Dedupes against the canonical-offer table in SQLite                 │
+│   6. Dedupes against the canonical-offer table in SQLite                 │
 │                                                                          │
-│   6. Fires a Discord thread if any of:                                   │
+│   7. Fires a Discord thread if any of:                                   │
 │        • reward ≥ $1                                                     │
 │        • opportunity_score ≥ 50                                          │
 │        • hidden_gem_score ≥ 70                                           │
@@ -71,8 +86,11 @@ offer so the same bonus doesn't spam the channel.
 │        • bank/brokerage/sportsbook ≥ $15                                 │
 │        • crypto signup ≥ $25                                             │
 │                                                                          │
-│   7. Commits the updated SQLite DB back to the repo so dedupe,           │
-│      alert cooldowns, and domain first-seen state survive between runs   │
+│   8. Exports docs/offers.json for the web dashboard                      │
+│                                                                          │
+│   9. Commits the updated SQLite DB + offers.json back to the repo so     │
+│      dedupe state survives, and GitHub Pages auto-rebuilds with the      │
+│      fresh snapshot                                                      │
 │                                                                          │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
@@ -111,7 +129,14 @@ Short version, ~10 minutes:
    permissions → "Read and write permissions" → Save.
 7. **Push any commit** (even a typo fix in this README). That triggers the
    first cron run, which flushes the alert backlog into Discord. From there,
-   the every-30-min schedule takes over.
+   the every-10-min schedule takes over.
+8. **Enable the web dashboard** (one-time):
+   - Settings → Pages
+   - Source: **Deploy from a branch**
+   - Branch: **main**, Folder: **`/docs`** → Save
+   - After ~1 minute, your dashboard goes live at
+     `https://<your-user>.github.io/<your-repo>/` and auto-rebuilds every
+     time the cron commits a fresh `docs/offers.json` (≈ every 10 min).
 
 ---
 
@@ -136,8 +161,14 @@ Subreddits live in **`reddit_intel/config.py`**:
 - `EXCLUDED_SUBREDDITS` — never monitor these
 
 Cron cadence lives in **`.github/workflows/intel-cron.yml`** at
-`schedule: - cron: "*/30 * * * *"`. Change to `0 * * * *` for hourly,
-`*/15 * * * *` for every 15 min, etc.
+`schedule: - cron: "*/10 * * * *"`. Change to `0 * * * *` for hourly,
+`*/30 * * * *` for every 30 min, etc.
+
+Sharding (hot vs cold subs per tick) is in **`reddit_intel/engine.py`**
+inside `_shard_subs(ranked, hot_count=12, shards=3)`. Increase `hot_count`
+to scan more subs every tick at the cost of more Reddit API pressure;
+increase `shards` to lower per-tick API load (worst-case cold latency
+becomes `cron_interval × shards`).
 
 ---
 
@@ -167,7 +198,7 @@ For all flags and tuning, see **[`RUNBOOK.md`](RUNBOOK.md)**.
 run.py                              entry shim
 requirements.txt                    praw + python-dotenv
 .github/workflows/
-  intel-cron.yml                    main 30-min cron (+ auto-backlog)
+  intel-cron.yml                    main 10-min cron (+ auto-backlog + dashboard export)
   discord-test.yml                  ping Discord (manual)
   discord-diagnose.yml              list bot's guilds/channels (manual)
   alert-backlog.yml                 flush backlog (manual)
@@ -175,7 +206,7 @@ reddit_intel/
   main.py                           CLI: --once / --daemon / --report
   reddit_client.py                  PRAW or no-auth public client selector
   public_client.py                  no-auth Reddit JSON client
-  engine.py                         fetch → ingest → score → alert
+  engine.py                         fetch → ingest → score → alert (+ sub sharding)
   config.py                         subs, keywords, thresholds
   detectors.py                      money / keyword / URL / USA-filter regexes
   scoring.py                        trust / scam / gem / opportunity formulas
@@ -190,6 +221,12 @@ reddit_intel/
   throttle.py                       adaptive backoff under Reddit 429
 scripts/
   alert_backlog.py                  flush eligible canonical offers to Discord
+  export_dashboard.py               canonical_offers → docs/offers.json
+docs/                               GitHub Pages site (static, no build)
+  index.html                        dashboard markup
+  styles.css                        dark theme
+  app.js                            filter / sort / search / auto-refresh
+  offers.json                       auto-generated by cron
 data/
   reddit_intel.db                   SQLite state — committed between runs
 reports/
@@ -200,15 +237,21 @@ reports/
 
 ## What it's NOT
 
-- **Not a Reddit firehose.** It polls `/new` every 30 minutes, capped at
-  ~25 posts/sub. Posts that get buried before the next poll will be missed.
+- **Not a Reddit firehose.** It polls `/new` every 10 minutes (every 30 min
+  for cold subs in shard rotation), capped at ~25 posts/sub. Posts that get
+  buried before the next poll will be missed.
 - **Not financial advice.** Every alert is just text-mined data with
   imperfect heuristic scoring. Verify offer terms before signing up; verify
   domain legitimacy before clicking referral links; assume nothing.
 - **Not a spam/account farm.** It only reads public listings; it doesn't
   comment, vote, post, or DM. It does not need a Reddit account.
-- **Not real-time.** Up to 30 min between a post appearing on Reddit and
-  the corresponding alert hitting Discord.
+- **Not real-time.** Up to 10 min for hot subs (worst case 30 min for cold
+  subs) between a post appearing on Reddit and the corresponding alert
+  hitting Discord / dashboard.
+- **Not a private dashboard.** The web dashboard is served from public
+  GitHub Pages and shows the same data that's already public on Reddit.
+  Don't store anything secret in it — there are no referral codes or PII
+  in `docs/offers.json`.
 
 ---
 

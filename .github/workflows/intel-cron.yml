@@ -1,12 +1,17 @@
 name: Reddit Intel cron
 
-# Runs one fetch cycle every 30 minutes (no Reddit OAuth — public JSON mode),
-# posts Discord alerts on hits, and commits the updated SQLite DB + reports
-# back so dedupe state and alert cooldowns survive between runs.
+# Runs one fetch cycle every 10 minutes (no Reddit OAuth — public JSON mode),
+# posts Discord alerts on hits, exports the dashboard JSON, and commits the
+# updated SQLite DB + reports + docs/offers.json back so dedupe state and
+# alert cooldowns survive between runs.
+#
+# Sub-priority sharding (see _shard_subs in reddit_intel/engine.py):
+#   - top 12 highest-quality subs hit every tick (worst-case 10 min)
+#   - remaining ~16 subs rotate across 3 shards (worst-case 30 min)
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "*/10 * * * *"
   push:
     branches: [main]
     paths:
@@ -46,7 +51,7 @@ permissions:
 jobs:
   fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 9
 
     steps:
       - name: Checkout repo (includes data/reddit_intel.db state)
@@ -152,6 +157,12 @@ jobs:
         run: |
           python run.py --report --report-window-hours 24
 
+      - name: Export dashboard JSON (docs/offers.json)
+        if: github.event_name != 'workflow_dispatch' || inputs.test_alert != 'true'
+        run: |
+          mkdir -p docs
+          python -m scripts.export_dashboard
+
       # SQLite is binary — `git pull --rebase` after a concurrent push always
       # conflicts and leaves the runner in a broken detached-HEAD state. Instead:
       # snapshot the DB/reports this run produced, hard-reset to origin/main,
@@ -172,19 +183,25 @@ jobs:
           if [ -d reports ] && [ -n "$(ls -A reports 2>/dev/null)" ]; then
             cp -r reports/. /tmp/intel-artifacts/reports/
           fi
+          if [ -f docs/offers.json ]; then
+            cp -f docs/offers.json /tmp/intel-artifacts/offers.json
+          fi
 
           for attempt in 1 2 3 4 5 6; do
             git fetch origin main
             git checkout main
             git reset --hard origin/main
 
-            mkdir -p data reports
+            mkdir -p data reports docs
             cp -f /tmp/intel-artifacts/reddit_intel.db data/reddit_intel.db
             if [ -n "$(ls -A /tmp/intel-artifacts/reports 2>/dev/null)" ]; then
               cp -r /tmp/intel-artifacts/reports/. reports/
             fi
+            if [ -f /tmp/intel-artifacts/offers.json ]; then
+              cp -f /tmp/intel-artifacts/offers.json docs/offers.json
+            fi
 
-            git add data/ reports/ 2>/dev/null || true
+            git add data/ reports/ docs/offers.json 2>/dev/null || true
             if git diff --cached --quiet; then
               echo "No state delta vs remote tip — nothing to commit."
               exit 0
