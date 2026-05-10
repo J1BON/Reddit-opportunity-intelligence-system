@@ -83,27 +83,42 @@ def _build_payload(row: dict[str, Any]) -> dict[str, Any]:
         reqs = json.loads(row.get("requirements_json") or "[]")
     except json.JSONDecodeError:
         reqs = []
+    try:
+        subs_list = json.loads(row.get("subreddits_json") or "[]")
+    except json.JSONDecodeError:
+        subs_list = []
 
-    links: list[str] = []
+    reddit_links: list[str] = []
     if isinstance(sources, list):
         for s in sources:
             if isinstance(s, dict) and s.get("permalink"):
-                links.append(f"https://reddit.com{s['permalink']}")
+                reddit_links.append(f"https://reddit.com{s['permalink']}")
+
+    referral_links: list[str] = []
     if isinstance(refurls, list):
-        links.extend(str(u) for u in refurls[:5])
+        for u in refurls:
+            su = str(u or "")
+            if su and "reddit.com" not in su:
+                referral_links.append(su)
+
+    primary_sub = subs_list[0] if isinstance(subs_list, list) and subs_list else ""
 
     return {
         "company_name": row.get("company_name"),
         "reward_amount": row.get("reward_amount"),
+        "offer_type": row.get("offer_type"),
+        "subreddit": primary_sub,
+        "first_seen": row.get("first_seen"),
         "requirements": ", ".join(reqs) if isinstance(reqs, list) else "",
         "deposit_needed": bool(row.get("deposit_required")),
-        "states": "USA scope unclear — verify terms",
         "trust_score": round(float(row.get("trust_score") or 0), 1),
         "mentions": row.get("mentions_count"),
         "trend_velocity": row.get("trend_velocity"),
         "hidden_gem_score": round(float(row.get("hidden_gem_score") or 0), 1),
+        "opportunity_score": round(float(row.get("opportunity_score") or 0), 1),
         "ai_summary": row.get("ai_summary"),
-        "links": " | ".join(links[:12]),
+        "reddit_links": reddit_links[:3],
+        "referral_links": referral_links[:4],
     }
 
 

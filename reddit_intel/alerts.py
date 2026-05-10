@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import html
 import json
+import re
+import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from reddit_intel.config import (
@@ -13,76 +17,254 @@ from reddit_intel.config import (
 )
 
 DISCORD_MESSAGE_LIMIT = 2000
+SUMMARY_MAX_CHARS = 380
 
 
-def format_priority_override_alert(payload: dict[str, object]) -> str:
-    lines = [
-        "⚡ PRIORITY OVERRIDE — early signal",
-        "",
-        f"Target: {payload.get('target', '')}",
-        f"Reward: {payload.get('reward_amount', '')}",
-        f"First mover: {payload.get('first_mover_score', '')}",
-        f"Engagement acceleration: {payload.get('engagement_acceleration_score', '')}",
-        f"Weighted confirmations: {payload.get('weighted_confirmation_score', '')}",
-        f"Competition density: {payload.get('competition_density_score', '')}",
-        f"Mentions: {payload.get('mentions', '')}",
-        f"Est. saturation window (h): {payload.get('estimated_saturation_hours_remaining', '')}",
-        "",
-        "Why:",
-        str(payload.get("why", "")),
-        "",
-        "Links:",
-        str(payload.get("links", "")),
-    ]
+_ZERO_WIDTH_RE = re.compile(r"[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]")
+_MD_LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+_MD_EMPHASIS_RE = re.compile(r"(\*{1,3}|_{1,3})([^*_\n]+)\1")
+_MD_OFFER_TAG_RE = re.compile(r"^\[[a-z_]+\]\s*", re.IGNORECASE)
+_WHITESPACE_RE = re.compile(r"\s+")
+_URL_INLINE_RE = re.compile(r"https?://\S+", re.IGNORECASE)
+
+
+def _clean_summary(text: str, max_chars: int = SUMMARY_MAX_CHARS) -> str:
+    """Strip HTML entities, markdown noise, and zero-width chars from Reddit body
+    text so it renders cleanly in a Discord quote block."""
+    if not text:
+        return ""
+    t = html.unescape(text)
+    t = _ZERO_WIDTH_RE.sub("", t)
+    t = _MD_LINK_RE.sub(r"\1", t)
+    t = _MD_EMPHASIS_RE.sub(r"\2", t)
+    t = _MD_OFFER_TAG_RE.sub("", t)
+    # Remove inline URLs from the summary — they're redundant with the link
+    # section below and cause Discord to auto-embed extra previews.
+    t = _URL_INLINE_RE.sub("", t)
+    t = _WHITESPACE_RE.sub(" ", t).strip()
+    if len(t) > max_chars:
+        cut = t[:max_chars].rsplit(" ", 1)[0]
+        t = cut + "..."
+    return t
+
+
+def _humanize_age(first_seen_ts: float | int | None) -> str:
+    if not first_seen_ts:
+        return ""
+    try:
+        delta = max(0.0, time.time() - float(first_seen_ts))
+    except (TypeError, ValueError):
+        return ""
+    if delta < 90:
+        return "just now"
+    minutes = delta / 60.0
+    if minutes < 60:
+        return f"{int(round(minutes))}m ago"
+    hours = minutes / 60.0
+    if hours < 48:
+        return f"{int(round(hours))}h ago"
+    days = hours / 24.0
+    return f"{int(round(days))}d ago"
+
+
+def _domain_of(url: str) -> str:
+    try:
+        host = urllib.parse.urlparse(url).hostname or url
+        return host.lower().lstrip("www.")
+    except (ValueError, AttributeError):
+        return url
+
+
+def _link_lines(reddit_links: list[str], referral_links: list[str]) -> list[str]:
+    """Render the link section. Show the first Reddit URL as an unsuppressed
+    link (Discord auto-embeds a single Reddit preview, which is useful);
+    suppress all other URLs with <> to avoid an embed wall."""
+    out: list[str] = []
+    if reddit_links:
+        primary = reddit_links[0]
+        out.append(f"📍 Reddit · {primary}")
+        for extra in reddit_links[1:3]:
+            out.append(f"           · <{extra}>")
+    if referral_links:
+        unique: list[str] = []
+        seen: set[str] = set()
+        for u in referral_links:
+            if not u:
+                continue
+            host = _domain_of(u)
+            if host in seen:
+                continue
+            seen.add(host)
+            unique.append((u, host))
+            if len(unique) >= 4:
+                break
+        rendered = " · ".join(f"[{host}](<{u}>)" for u, host in unique)
+        if rendered:
+            out.append(f"🔗 Referral · {rendered}")
+    return out
+
+
+def _meta_line(parts: list[tuple[str, object]]) -> str:
+    """Join non-empty (label, value) pairs as 'Label N' separated by ' · '."""
+    rendered: list[str] = []
+    for label, value in parts:
+        s = "" if value is None else str(value).strip()
+        if not s or s in ("0", "0.0"):
+            continue
+        rendered.append(f"{label} {s}")
+    return " · ".join(rendered)
+
+
+def _coerce_links(value: object) -> list[str]:
+    if isinstance(value, list):
+        return [str(u) for u in value if u]
+    if isinstance(value, str):
+        # Legacy callers passed a single " | "-joined string. Split it back out.
+        return [u.strip() for u in value.split("|") if u.strip()]
+    return []
+
+
+def format_alert(payload: dict[str, object]) -> str:
+    company = str(payload.get("company_name", "") or "").strip() or "Unknown"
+    reward = str(payload.get("reward_amount", "") or "").strip()
+    offer_type = str(payload.get("offer_type", "") or "").strip()
+    subreddit = str(payload.get("subreddit", "") or "").strip()
+    age = _humanize_age(payload.get("first_seen"))
+
+    summary = _clean_summary(str(payload.get("ai_summary", "") or ""))
+    reddit_links = _coerce_links(payload.get("reddit_links") or payload.get("links"))
+    referral_links = _coerce_links(payload.get("referral_links"))
+
+    # Headline: 🔥 **Company — $XX**
+    headline = company
+    if reward:
+        headline = f"{company} — {reward}"
+    lines = [f"🔥 **{headline}**"]
+
+    # Sub-headline: type · sub · age
+    sub_parts: list[str] = []
+    if offer_type:
+        sub_parts.append(f"`{offer_type.replace('_', ' ')}`")
+    if subreddit:
+        sub_parts.append(f"r/{subreddit}")
+    if age:
+        sub_parts.append(age)
+    if sub_parts:
+        lines.append(" · ".join(sub_parts))
+
+    # Scores line
+    scores = _meta_line(
+        [
+            ("Trust", payload.get("trust_score")),
+            ("Gem", payload.get("hidden_gem_score")),
+            ("Opp", payload.get("opportunity_score")),
+            ("Mentions", payload.get("mentions")),
+        ]
+    )
+    if scores:
+        lines.append(scores)
+
+    if summary:
+        lines.append("")
+        lines.append(f"> {summary}")
+
+    link_lines = _link_lines(reddit_links, referral_links)
+    if link_lines:
+        lines.append("")
+        lines.extend(link_lines)
+
     return "\n".join(lines)
 
 
 def format_early_gem_alert(payload: dict[str, object]) -> str:
-    lines = [
-        "🚨 EARLY GEM DETECTED",
-        "",
-        f"App/Site: {payload.get('app_site', '')}",
-        f"Reward: {payload.get('reward_amount', '')}",
-        f"Launch Status: {payload.get('launch_status', '')}",
-        f"First Seen: {payload.get('first_seen', '')}",
-        f"Subreddits: {payload.get('subreddits', '')}",
-        f"Mentions: {payload.get('mentions', '')}",
-        f"First Mover Score: {payload.get('first_mover_score', '')}",
-        f"Trust Score: {payload.get('trust_score', '')}",
-        f"Risk Level: {payload.get('risk_level', '')}",
-        "",
-        "Why It Matters:",
-        str(payload.get("why_it_matters", "")),
-        "",
-        "Potential:",
-        str(payload.get("potential", "")),
-        "",
-        "Links:",
-        str(payload.get("links", "")),
-    ]
+    app = str(payload.get("app_site", "") or "Unknown").strip()
+    reward = str(payload.get("reward_amount", "") or "").strip()
+    age = _humanize_age(payload.get("first_seen_ts")) or str(
+        payload.get("first_seen", "") or ""
+    ).strip()
+    subs = str(payload.get("subreddits", "") or "").strip()
+
+    headline = f"{app} — {reward}" if reward else app
+    lines = [f"💎 **EARLY GEM** · {headline}"]
+
+    sub_parts: list[str] = []
+    launch_stat = str(payload.get("launch_status", "") or "").strip()
+    if launch_stat:
+        sub_parts.append(f"`{launch_stat}`")
+    if subs:
+        # Subreddits string may be comma-joined; show first 3 cleanly.
+        cleaned = ", ".join([s.strip() for s in subs.split(",") if s.strip()][:3])
+        if cleaned:
+            sub_parts.append(cleaned)
+    if age:
+        sub_parts.append(f"first seen {age}")
+    if sub_parts:
+        lines.append(" · ".join(sub_parts))
+
+    scores = _meta_line(
+        [
+            ("First-mover", payload.get("first_mover_score")),
+            ("Trust", payload.get("trust_score")),
+            ("Mentions", payload.get("mentions")),
+        ]
+    )
+    risk = str(payload.get("risk_level", "") or "").strip()
+    if risk:
+        scores = (scores + " · " if scores else "") + f"Risk {risk}"
+    if scores:
+        lines.append(scores)
+
+    why = _clean_summary(str(payload.get("why_it_matters", "") or ""))
+    pot = _clean_summary(str(payload.get("potential", "") or ""))
+    if why:
+        lines.append("")
+        lines.append(f"> **Why** · {why}")
+    if pot:
+        lines.append(f"> **Potential** · {pot}")
+
+    reddit_links = _coerce_links(payload.get("reddit_links") or payload.get("links"))
+    referral_links = _coerce_links(payload.get("referral_links"))
+    link_lines = _link_lines(reddit_links, referral_links)
+    if link_lines:
+        lines.append("")
+        lines.extend(link_lines)
+
     return "\n".join(lines)
 
 
-def format_alert(payload: dict[str, object]) -> str:
-    lines = [
-        "🔥 NEW USA OPPORTUNITY",
-        "",
-        f"Company: {payload.get('company_name', '')}",
-        f"Reward: {payload.get('reward_amount', '')}",
-        f"Requirements: {payload.get('requirements', '')}",
-        f"Deposit Needed: {payload.get('deposit_needed', '')}",
-        f"States Eligible: {payload.get('states', '')}",
-        f"Trust Score: {payload.get('trust_score', '')}",
-        f"Mentions: {payload.get('mentions', '')}",
-        f"Trend Velocity: {payload.get('trend_velocity', '')}",
-        f"Hidden Gem Score: {payload.get('hidden_gem_score', '')}",
-        "",
-        "Summary:",
-        str(payload.get("ai_summary", "")),
-        "",
-        "Links:",
-        str(payload.get("links", "")),
-    ]
+def format_priority_override_alert(payload: dict[str, object]) -> str:
+    target = str(payload.get("target", "") or "Unknown").strip()
+    reward = str(payload.get("reward_amount", "") or "").strip()
+    headline = f"{target} — {reward}" if reward else target
+    lines = [f"⚡ **PRIORITY** · {headline}"]
+
+    scores = _meta_line(
+        [
+            ("First-mover", payload.get("first_mover_score")),
+            ("Eng-accel", payload.get("engagement_acceleration_score")),
+            ("Confirms", payload.get("weighted_confirmation_score")),
+            ("Competition", payload.get("competition_density_score")),
+            ("Mentions", payload.get("mentions")),
+        ]
+    )
+    sat_hours = payload.get("estimated_saturation_hours_remaining")
+    if sat_hours:
+        scores = (scores + " · " if scores else "") + f"Sat-window {sat_hours}h"
+    if scores:
+        lines.append(scores)
+
+    why = _clean_summary(str(payload.get("why", "") or ""))
+    if why:
+        lines.append("")
+        lines.append(f"> {why}")
+
+    reddit_links = _coerce_links(payload.get("reddit_links") or payload.get("links"))
+    referral_links = _coerce_links(payload.get("referral_links"))
+    link_lines = _link_lines(reddit_links, referral_links)
+    if link_lines:
+        lines.append("")
+        lines.extend(link_lines)
+
     return "\n".join(lines)
 
 

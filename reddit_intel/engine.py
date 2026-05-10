@@ -587,27 +587,41 @@ def _maybe_fire_alert(db: Database, fields: dict[str, Any]) -> None:
         pass
 
     sources = json.loads(fields.get("source_posts_json") or "[]")
-    links = []
+    reddit_links: list[str] = []
     if isinstance(sources, list):
         for s in sources:
             if isinstance(s, dict) and s.get("permalink"):
-                links.append(f"https://reddit.com{s['permalink']}")
-    refurls = json.loads(fields.get("referral_links_json") or "[]")
-    if isinstance(refurls, list):
-        links.extend(refurls[:5])
+                reddit_links.append(f"https://reddit.com{s['permalink']}")
+    refurls_raw = json.loads(fields.get("referral_links_json") or "[]")
+    referral_links: list[str] = []
+    if isinstance(refurls_raw, list):
+        for u in refurls_raw:
+            su = str(u or "")
+            if su and "reddit.com" not in su:
+                referral_links.append(su)
+
+    try:
+        subs_list = json.loads(fields.get("subreddits_json") or "[]")
+        primary_sub = subs_list[0] if isinstance(subs_list, list) and subs_list else ""
+    except json.JSONDecodeError:
+        primary_sub = ""
 
     payload = {
         "company_name": fields.get("company_name"),
         "reward_amount": fields.get("reward_amount"),
+        "offer_type": fields.get("offer_type"),
+        "subreddit": primary_sub,
+        "first_seen": fields.get("first_seen"),
         "requirements": ", ".join(reqs) if reqs else "",
         "deposit_needed": bool(fields.get("deposit_required")),
-        "states": "USA scope unclear — verify terms",
         "trust_score": round(trust, 1),
         "mentions": fields.get("mentions_count"),
         "trend_velocity": fields.get("trend_velocity"),
         "hidden_gem_score": round(gem, 1),
+        "opportunity_score": round(opp, 1),
         "ai_summary": fields.get("ai_summary"),
-        "links": " | ".join(links[:12]),
+        "reddit_links": reddit_links[:3],
+        "referral_links": referral_links[:4],
     }
     text = format_alert(payload)
     send_console_alert(text)
@@ -679,14 +693,18 @@ def _maybe_fire_early_gem_alert(db: Database, fields: dict[str, Any]) -> None:
     first_seen_s = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(fs_ts))
 
     sources = json.loads(fields.get("source_posts_json") or "[]")
-    links: list[str] = []
+    reddit_links: list[str] = []
     if isinstance(sources, list):
         for s in sources:
             if isinstance(s, dict) and s.get("permalink"):
-                links.append(f"https://reddit.com{s['permalink']}")
-    refurls = json.loads(fields.get("referral_links_json") or "[]")
-    if isinstance(refurls, list):
-        links.extend(str(u) for u in refurls[:8])
+                reddit_links.append(f"https://reddit.com{s['permalink']}")
+    refurls_raw = json.loads(fields.get("referral_links_json") or "[]")
+    referral_links: list[str] = []
+    if isinstance(refurls_raw, list):
+        for u in refurls_raw:
+            su = str(u or "")
+            if su and "reddit.com" not in su:
+                referral_links.append(su)
 
     pd = str(fields.get("primary_domain") or "").strip()
     app_site = str(fields.get("company_name", ""))
@@ -698,6 +716,7 @@ def _maybe_fire_early_gem_alert(db: Database, fields: dict[str, Any]) -> None:
         "reward_amount": fields.get("reward_amount"),
         "launch_status": launch_stat,
         "first_seen": first_seen_s,
+        "first_seen_ts": fs_ts,
         "subreddits": sub_s,
         "mentions": mentions,
         "first_mover_score": round(fms, 1),
@@ -705,7 +724,8 @@ def _maybe_fire_early_gem_alert(db: Database, fields: dict[str, Any]) -> None:
         "risk_level": _risk_level_label(risk),
         "why_it_matters": why,
         "potential": pot,
-        "links": " | ".join(links[:14]),
+        "reddit_links": reddit_links[:3],
+        "referral_links": referral_links[:4],
     }
     text = format_early_gem_alert(payload)
     send_console_alert(text)
@@ -746,14 +766,18 @@ def _maybe_fire_priority_override_alert(db: Database, fields: dict[str, Any]) ->
         return
 
     sources = json.loads(fields.get("source_posts_json") or "[]")
-    links: list[str] = []
+    reddit_links: list[str] = []
     if isinstance(sources, list):
         for s in sources:
             if isinstance(s, dict) and s.get("permalink"):
-                links.append(f"https://reddit.com{s['permalink']}")
-    refurls = json.loads(fields.get("referral_links_json") or "[]")
-    if isinstance(refurls, list):
-        links.extend(str(u) for u in refurls[:8])
+                reddit_links.append(f"https://reddit.com{s['permalink']}")
+    refurls_raw = json.loads(fields.get("referral_links_json") or "[]")
+    referral_links: list[str] = []
+    if isinstance(refurls_raw, list):
+        for u in refurls_raw:
+            su = str(u or "")
+            if su and "reddit.com" not in su:
+                referral_links.append(su)
 
     why = (
         "Pre-saturation signal: new/fresh footprint + accelerating engagement + credible-weight "
@@ -771,7 +795,8 @@ def _maybe_fire_priority_override_alert(db: Database, fields: dict[str, Any]) ->
             float(fields.get("estimated_saturation_hours_remaining") or 0), 1
         ),
         "why": why,
-        "links": " | ".join(links[:14]),
+        "reddit_links": reddit_links[:3],
+        "referral_links": referral_links[:4],
     }
     text = format_priority_override_alert(payload)
     send_console_alert(text)
