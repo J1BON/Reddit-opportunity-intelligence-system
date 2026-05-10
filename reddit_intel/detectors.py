@@ -59,6 +59,27 @@ def usa_boost_score(text: str) -> float:
     return max(0.0, min(40.0, boost - penalty))
 
 
+def usa_penalty_hits(text: str) -> list[str]:
+    t = _lower(text)
+    return [term for term in USA_PENALTY_TERMS if term in t]
+
+
+def usa_boost_hits(text: str) -> list[str]:
+    t = _lower(text)
+    return [term for term in USA_BOOST_TERMS if term in t]
+
+
+def geo_excludes_usa(text: str) -> bool:
+    """True when the post explicitly excludes USA (UK only / Canada only / etc.)
+    AND has no offsetting USA-friendly signal. Ambiguous / unspecified posts
+    return False so they remain eligible — most offers don't explicitly state
+    geography in the title."""
+    penalty = usa_penalty_hits(text)
+    if not penalty:
+        return False
+    return not usa_boost_hits(text)
+
+
 _MONEY_RE = re.compile(
     r"(?:\$|usd\s*)[\s]*([\d,]+(?:\.\d{1,2})?)|(?:earn|get|receive|bonus)\s*(?:of\s*)?\$?\s*([\d,]+(?:\.\d{1,2})?)",
     re.I,

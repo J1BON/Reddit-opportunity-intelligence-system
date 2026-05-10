@@ -31,6 +31,7 @@ from reddit_intel.config import (
     FETCH_COMMENT_SAMPLES,
     MONITORED_SUBREDDITS,
     POSTS_PER_SUB_FETCH,
+    USA_ONLY_STRICT,
 )
 from reddit_intel.database import Database
 from reddit_intel.dedupe import build_canonical_offer_id, guess_company_slug, merge_unique_lists
@@ -39,6 +40,7 @@ from reddit_intel.detectors import (
     early_signal_hit_count,
     extract_money_amounts,
     extract_urls,
+    geo_excludes_usa,
     keyword_hit_count,
     urgency_hits,
 )
@@ -157,6 +159,8 @@ def process_submission(
     body = getattr(sub, "selftext", "") or ""
     text = f"{title}\n{body}"
     if not _should_ingest(text):
+        return None
+    if USA_ONLY_STRICT and geo_excludes_usa(text):
         return None
 
     now = time.time()

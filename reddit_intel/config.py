@@ -228,6 +228,8 @@ EARLY_SIGNAL_PHRASES = [
     "pre-launch",
 ]
 
+USA_ONLY_STRICT = os.getenv("USA_ONLY_STRICT", "1").strip().lower() in ("1", "true", "yes", "on")
+
 BACKFILL_INTERVAL_SECONDS = int(os.getenv("BACKFILL_INTERVAL_SECONDS", "300"))
 REPORT_INTERVAL_SECONDS = int(os.getenv("REPORT_INTERVAL_SECONDS", str(12 * 3600)))
 POSTS_PER_SUB_FETCH = int(os.getenv("POSTS_PER_SUB_FETCH", "50"))
