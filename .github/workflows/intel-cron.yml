@@ -7,6 +7,14 @@ name: Reddit Intel cron
 on:
   schedule:
     - cron: "*/30 * * * *"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/intel-cron.yml"
+      - "reddit_intel/**"
+      - "scripts/**"
+      - "requirements.txt"
+      - "run.py"
   workflow_dispatch:
     inputs:
       report:
@@ -89,6 +97,25 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.test_alert == 'true'
         run: |
           echo "::notice::test_alert=true — skipping fetch and report steps for this run."
+
+      - name: Auto-flush alert backlog (one-time, sentinel-gated)
+        if: github.event_name != 'workflow_dispatch' || inputs.test_alert != 'true'
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_ALERT_CHANNEL_ID: ${{ secrets.DISCORD_ALERT_CHANNEL_ID }}
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          mkdir -p data
+          if [ -f data/.backlog_flushed ]; then
+            echo "[auto-backlog] sentinel data/.backlog_flushed exists; skipping."
+            cat data/.backlog_flushed || true
+            exit 0
+          fi
+          echo "[auto-backlog] first run — flushing eligible canonical offers from DB into Discord."
+          python -m scripts.alert_backlog --hours 720 --max 25 --rate-limit-seconds 1.2
+          date -u +%Y-%m-%dT%H:%MZ > data/.backlog_flushed
+          echo "[auto-backlog] wrote sentinel data/.backlog_flushed; future cron runs will skip this step."
 
       - name: Run one fetch cycle
         if: github.event_name != 'workflow_dispatch' || inputs.test_alert != 'true'
