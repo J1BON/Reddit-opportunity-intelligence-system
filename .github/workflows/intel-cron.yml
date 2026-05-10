@@ -36,6 +36,7 @@ jobs:
       - name: Checkout repo (includes data/reddit_intel.db state)
         uses: actions/checkout@v4
         with:
+          ref: main
           persist-credentials: true
           fetch-depth: 1
 
@@ -79,26 +80,53 @@ jobs:
         run: |
           python run.py --report --report-window-hours 24
 
+      # SQLite is binary — `git pull --rebase` after a concurrent push always
+      # conflicts and leaves the runner in a broken detached-HEAD state. Instead:
+      # snapshot the DB/reports this run produced, hard-reset to origin/main,
+      # copy the snapshot back on top, commit once, push (with retries).
       - name: Commit state changes back to the repo
         run: |
+          set -e
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/ reports/ 2>/dev/null || true
-          if git diff --cached --quiet; then
-            echo "No state changes to commit."
-            exit 0
+
+          # Clean up any half-finished rebase from an older workflow revision.
+          git rebase --abort 2>/dev/null || true
+          git merge --abort 2>/dev/null || true
+
+          mkdir -p /tmp/intel-artifacts/reports
+          cp -f data/reddit_intel.db /tmp/intel-artifacts/reddit_intel.db
+          if [ -d reports ] && [ -n "$(ls -A reports 2>/dev/null)" ]; then
+            cp -r reports/. /tmp/intel-artifacts/reports/
           fi
-          # [skip ci] avoids triggering other workflows on this housekeeping commit.
-          git commit -m "chore(cron): state snapshot $(date -u +'%Y-%m-%dT%H:%MZ') [skip ci]"
-          # Retry the push a few times — concurrent runs are blocked by the
-          # concurrency group, but a transient network blip shouldn't fail the run.
-          for i in 1 2 3; do
-            if git push; then
+
+          for attempt in 1 2 3 4 5 6; do
+            git fetch origin main
+            git checkout main
+            git reset --hard origin/main
+
+            mkdir -p data reports
+            cp -f /tmp/intel-artifacts/reddit_intel.db data/reddit_intel.db
+            if [ -n "$(ls -A /tmp/intel-artifacts/reports 2>/dev/null)" ]; then
+              cp -r /tmp/intel-artifacts/reports/. reports/
+            fi
+
+            git add data/ reports/ 2>/dev/null || true
+            if git diff --cached --quiet; then
+              echo "No state delta vs remote tip — nothing to commit."
+              exit 0
+            fi
+
+            git commit -m "chore(cron): state snapshot $(date -u +'%Y-%m-%dT%H:%MZ') [skip ci]"
+
+            if git push origin main; then
               echo "Pushed state."
               exit 0
             fi
-            echo "Push attempt $i failed; pulling --rebase and retrying."
-            git pull --rebase --autostash || true
-            sleep 5
+
+            echo "Push rejected (concurrent update or race). Retry $attempt/6 after backoff..."
+            sleep $((5 + RANDOM % 15))
           done
-          echo "::warning::Failed to push state after 3 attempts. Next run will retry."
+
+          echo "::warning::Failed to push state after 6 attempts. A later cron run will retry."
+          exit 0

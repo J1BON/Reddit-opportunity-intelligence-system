@@ -173,7 +173,8 @@ in order of preference:
 | Discord channel is silent even though log shows `[ALERT]` | Bot isn't a member of that server / channel, or `Send Messages` permission missing. Re-run the OAuth invite URL (step 1.3) and make sure the channel ID matches the channel the bot can see. |
 | `Permission denied` when the workflow tries to push state | Repo → **Settings** → **Actions** → **General** → **Workflow permissions** → select **Read and write permissions** → **Save**. |
 | Workflow never runs on cron, only manually | GitHub disables `schedule:` triggers on inactive repos after ~60 days with zero commits. Any commit re-enables them. |
-| Reddit returns HTTP 403 (`Blocked`) on a sub | Some subs ban anonymous JSON access. Remove the sub from `HIGH_PRIORITY_SUBREDDITS` in `reddit_intel/config.py` or accept the deferral. |
+| `CONFLICT (content): Merge conflict in data/reddit_intel.db` / failed push after `git pull --rebase` | Fixed in current `intel-cron.yml` — update your repo to the latest workflow (pull this project or re-copy `.github/workflows/intel-cron.yml`). The commit step no longer rebases SQLite; it snapshots, resets to `origin/main`, reapplies, then pushes. |
+| `[cycle] ingested/processed 0 matching posts` | Normal when nothing new matched your keyword filters in that window, or many subs were deferred (429). Check earlier log lines for rate-limit messages. |
 
 ---
 
@@ -185,6 +186,7 @@ Nothing locks you in. To run from your PC again, just keep WARP on and:
 py -3 run.py --once     # or --daemon
 ```
 
-Your local `.env` is still there with `REDDIT_NO_AUTH=1`. You can also `git
-pull` between local and Actions runs and the DB merges cleanly (it's the same
-SQLite file).
+Your local `.env` is still there with `REDDIT_NO_AUTH=1`. After Actions runs,
+`git pull` in this folder downloads the latest committed DB and reports to
+your PC (if you edited the DB locally too, Git may warn about conflicts —
+pick one copy of `data/reddit_intel.db` and keep it).
