@@ -1,0 +1,33 @@
+# Local secrets — NEVER commit these.
+.env
+.env.local
+.env.*.local
+
+# Python build / cache artifacts.
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments.
+.venv/
+venv/
+env/
+
+# IDE / OS noise.
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# We DO commit data/reddit_intel.db and reports/ so the GitHub Actions
+# cron job can persist dedupe + alert-cooldown state across runs.
+# (Override with a leading "!" if you change your mind.)
