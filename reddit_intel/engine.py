@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -34,7 +35,13 @@ from reddit_intel.config import (
     USA_ONLY_STRICT,
 )
 from reddit_intel.database import Database
-from reddit_intel.dedupe import build_canonical_offer_id, guess_company_slug, merge_unique_lists
+from reddit_intel.dedupe import (
+    brand_display_name,
+    build_canonical_offer_id,
+    clean_post_title,
+    merge_unique_lists,
+    pick_brand,
+)
 from reddit_intel.detectors import (
     classify_offer_type,
     early_signal_hit_count,
@@ -107,8 +114,16 @@ def _should_ingest(text: str) -> bool:
 
 
 def _ai_summary(title: str, body: str, offer_type: str) -> str:
-    blob = f"{title}\n{body or ''}".strip()[:800]
-    return f"[{offer_type}] {blob}".replace("\n", " ")
+    """Build a clean human-friendly summary. ``offer_type`` is omitted here
+    because the dashboard / Discord already render it as a separate badge.
+    """
+    clean_title = clean_post_title(title or "", max_chars=160)
+    body_trim = (body or "").strip()
+    body_trim = re.sub(r"\bi\s*will\s*not\s*promote\b\.?", "", body_trim, flags=re.I)
+    body_trim = re.sub(r"\s+", " ", body_trim).strip()
+    body_trim = body_trim[:500].rsplit(" ", 1)[0] if len(body_trim) > 500 else body_trim
+    parts = [p for p in (clean_title, body_trim) if p]
+    return " — ".join(parts)[:800]
 
 
 def _trust_reasoning(scam_p: float, confirms: int, brand: str) -> str:
@@ -191,7 +206,13 @@ def process_submission(
 
     offer_type = classify_offer_type(text)
     cid = build_canonical_offer_id(title, body, offer_type)
-    brand = guess_company_slug(text)
+    # Brand picking needs the title separate from the body and the list of
+    # external domains, so it can prefer domain-based matches over fuzzy
+    # text matches. URL extraction happens further down — peek here.
+    _urls_for_brand = extract_urls(text)
+    _domains_for_brand = extract_external_domains(_urls_for_brand)
+    brand = pick_brand(title, body, _domains_for_brand)
+    post_title_clean = clean_post_title(title, max_chars=140)
 
     amounts = extract_money_amounts(text)
     max_reward = max(amounts) if amounts else 0.0
@@ -456,9 +477,12 @@ def process_submission(
     summary = _ai_summary(title, body, offer_type)
     strategy = summarize_strategy(text, offer_type)
 
+    company_display = brand_display_name(brand) or post_title_clean[:60] or title[:60]
     fields: dict[str, Any] = {
         "canonical_offer_id": cid,
-        "company_name": brand.replace("_", " ").title() if brand != "UNKNOWN_BRAND" else title[:80],
+        "company_name": company_display,
+        "post_title": title[:280] if title else "",
+        "post_title_clean": post_title_clean,
         "offer_type": offer_type,
         "reward_amount": reward_str or (existing or {}).get("reward_amount") or "",
         "currency": "USD",
@@ -608,6 +632,7 @@ def _maybe_fire_alert(db: Database, fields: dict[str, Any]) -> None:
 
     payload = {
         "company_name": fields.get("company_name"),
+        "post_title": fields.get("post_title_clean") or fields.get("post_title"),
         "reward_amount": fields.get("reward_amount"),
         "offer_type": fields.get("offer_type"),
         "subreddit": primary_sub,
@@ -713,6 +738,7 @@ def _maybe_fire_early_gem_alert(db: Database, fields: dict[str, Any]) -> None:
 
     payload = {
         "app_site": app_site,
+        "post_title": fields.get("post_title_clean") or fields.get("post_title"),
         "reward_amount": fields.get("reward_amount"),
         "launch_status": launch_stat,
         "first_seen": first_seen_s,
@@ -785,6 +811,7 @@ def _maybe_fire_priority_override_alert(db: Database, fields: dict[str, Any]) ->
     )
     payload = {
         "target": fields.get("company_name"),
+        "post_title": fields.get("post_title_clean") or fields.get("post_title"),
         "reward_amount": fields.get("reward_amount"),
         "first_mover_score": round(fms, 1),
         "engagement_acceleration_score": round(eng_a, 1),
@@ -849,16 +876,38 @@ def run_fetch_cycle(reddit: "praw.Reddit", db: Database) -> int:
         cap = max(4, COMMENT_SAMPLE_LIMIT // 3)
 
     count = 0
+    # Once every 6 ticks (~1 hour at the 10-min cadence) we also scan /hot
+    # for each sub to catch posts that exploded after we last saw them in
+    # /new. /hot adds a single extra request per sub so we gate it.
+    scan_hot_this_tick = int(time.time() // 600) % 6 == 0
+
     try:
         for sub_name in fetch_order:
             time.sleep(th.sleep_backoff_seconds())
             try:
                 sub = reddit.subreddit(sub_name)
+                seen_ids: set[str] = set()
                 for post in sub.new(limit=POSTS_PER_SUB_FETCH):
+                    pid = getattr(post, "name", None) or getattr(post, "id", "")
+                    if pid:
+                        seen_ids.add(str(pid))
                     if process_submission(
                         post, db, fetch_comments=fc_global, comment_sample_cap=cap
                     ):
                         count += 1
+                if scan_hot_this_tick and hasattr(sub, "hot"):
+                    time.sleep(th.sleep_backoff_seconds())
+                    try:
+                        for post in sub.hot(limit=min(15, POSTS_PER_SUB_FETCH)):
+                            pid = getattr(post, "name", None) or getattr(post, "id", "")
+                            if pid and str(pid) in seen_ids:
+                                continue
+                            if process_submission(
+                                post, db, fetch_comments=fc_global, comment_sample_cap=cap
+                            ):
+                                count += 1
+                    except Exception:
+                        pass
             except Exception as ex:
                 low = str(ex).lower()
                 if (

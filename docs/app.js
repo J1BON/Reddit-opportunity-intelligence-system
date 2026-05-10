@@ -170,6 +170,8 @@ function applyFilters() {
       const hay = (
         (o.company || "") +
         " " +
+        (o.post_title || "") +
+        " " +
         (o.ai_summary || "") +
         " " +
         (o.primary_domain || "") +
@@ -269,6 +271,16 @@ function renderCard(o) {
       ? reward
       : "$" + reward
     : "";
+  // Render the cleaned actual Reddit post title under the brand, so the
+  // card communicates what the post is really about — independent of
+  // whether the brand picker matched.
+  const ptEl = node.querySelector(".post-title");
+  const titleText = (o.post_title || "").trim();
+  if (titleText && titleText.toLowerCase() !== (o.company || "").toLowerCase()) {
+    ptEl.textContent = titleText;
+  } else {
+    ptEl.textContent = "";
+  }
 
   const badges = node.querySelector(".badges");
   if (o.type) badges.appendChild(mkBadge(o.type, "type"));

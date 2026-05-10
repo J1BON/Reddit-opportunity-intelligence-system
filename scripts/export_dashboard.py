@@ -37,6 +37,7 @@ except (AttributeError, OSError):
     pass
 
 from reddit_intel.database import Database
+from reddit_intel.dedupe import brand_display_name, clean_post_title, pick_brand
 
 
 def _safe_list(blob: Any) -> list[Any]:
@@ -89,9 +90,38 @@ def _row_to_offer(row: dict[str, Any]) -> dict[str, Any]:
     reward_str = str(row.get("reward_amount") or "").strip()
     reward_usd = _reward_usd(reward_str)
 
+    # Recompute brand + cleaned title using the current rules, even for
+    # legacy rows where ``company_name`` and ``ai_summary`` were filled in
+    # by an older buggy version. The first source post's title is the
+    # authoritative human label for the offer.
+    first_source = sources[0] if sources and isinstance(sources[0], dict) else {}
+    source_title = (
+        row.get("post_title")
+        or row.get("post_title_clean")
+        or first_source.get("title")
+        or ""
+    )
+    primary_domain = (row.get("primary_domain") or "").strip()
+    domains_for_brand = [primary_domain] if primary_domain else []
+    brand_slug = pick_brand(source_title, row.get("ai_summary") or "", domains_for_brand)
+    brand_display = brand_display_name(brand_slug)
+    title_clean = clean_post_title(source_title, max_chars=140)
+
+    # If we have a recognised brand, use it as the headline; otherwise fall
+    # back to the cleaned post title (so the card still shows something
+    # meaningful for off-topic / unknown-brand rows).
+    if brand_display:
+        company_out = brand_display
+    elif title_clean:
+        company_out = title_clean[:60]
+    else:
+        company_out = row.get("company_name") or ""
+
     return {
         "id": row.get("canonical_offer_id"),
-        "company": row.get("company_name") or "",
+        "company": company_out,
+        "brand_slug": brand_slug,
+        "post_title": title_clean,
         "type": row.get("offer_type") or "",
         "reward": reward_str,
         "reward_usd": reward_usd,

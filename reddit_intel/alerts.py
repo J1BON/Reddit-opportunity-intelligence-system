@@ -126,6 +126,7 @@ def _coerce_links(value: object) -> list[str]:
 
 def format_alert(payload: dict[str, object]) -> str:
     company = str(payload.get("company_name", "") or "").strip() or "Unknown"
+    post_title = str(payload.get("post_title", "") or "").strip()
     reward = str(payload.get("reward_amount", "") or "").strip()
     offer_type = str(payload.get("offer_type", "") or "").strip()
     subreddit = str(payload.get("subreddit", "") or "").strip()
@@ -135,11 +136,17 @@ def format_alert(payload: dict[str, object]) -> str:
     reddit_links = _coerce_links(payload.get("reddit_links") or payload.get("links"))
     referral_links = _coerce_links(payload.get("referral_links"))
 
-    # Headline: 🔥 **Company — $XX**
+    # Headline: 🔥 **Brand — $XX**   (post title shown on the next line)
     headline = company
     if reward:
         headline = f"{company} — {reward}"
     lines = [f"🔥 **{headline}**"]
+
+    # Actual Reddit post title (skipped if it would duplicate the headline).
+    if post_title and post_title.lower() not in headline.lower():
+        cleaned_title = _clean_summary(post_title, max_chars=200)
+        if cleaned_title:
+            lines.append(f"_{cleaned_title}_")
 
     # Sub-headline: type · sub · age
     sub_parts: list[str] = []
@@ -178,6 +185,7 @@ def format_alert(payload: dict[str, object]) -> str:
 
 def format_early_gem_alert(payload: dict[str, object]) -> str:
     app = str(payload.get("app_site", "") or "Unknown").strip()
+    post_title = str(payload.get("post_title", "") or "").strip()
     reward = str(payload.get("reward_amount", "") or "").strip()
     age = _humanize_age(payload.get("first_seen_ts")) or str(
         payload.get("first_seen", "") or ""
@@ -186,6 +194,10 @@ def format_early_gem_alert(payload: dict[str, object]) -> str:
 
     headline = f"{app} — {reward}" if reward else app
     lines = [f"💎 **EARLY GEM** · {headline}"]
+    if post_title and post_title.lower() not in headline.lower():
+        cleaned_title = _clean_summary(post_title, max_chars=200)
+        if cleaned_title:
+            lines.append(f"_{cleaned_title}_")
 
     sub_parts: list[str] = []
     launch_stat = str(payload.get("launch_status", "") or "").strip()
@@ -234,9 +246,14 @@ def format_early_gem_alert(payload: dict[str, object]) -> str:
 
 def format_priority_override_alert(payload: dict[str, object]) -> str:
     target = str(payload.get("target", "") or "Unknown").strip()
+    post_title = str(payload.get("post_title", "") or "").strip()
     reward = str(payload.get("reward_amount", "") or "").strip()
     headline = f"{target} — {reward}" if reward else target
     lines = [f"⚡ **PRIORITY** · {headline}"]
+    if post_title and post_title.lower() not in headline.lower():
+        cleaned_title = _clean_summary(post_title, max_chars=200)
+        if cleaned_title:
+            lines.append(f"_{cleaned_title}_")
 
     scores = _meta_line(
         [

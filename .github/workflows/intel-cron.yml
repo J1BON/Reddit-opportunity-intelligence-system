@@ -128,7 +128,7 @@ jobs:
           REDDIT_NO_AUTH: "1"
           REDDIT_USER_AGENT: "USAOpportunityIntelBot/1.0 (GitHub Actions cron; +https://github.com/${{ github.repository }})"
           BACKFILL_INTERVAL_SECONDS: "1800"
-          POSTS_PER_SUB_FETCH: "25"
+          POSTS_PER_SUB_FETCH: "50"
           FETCH_COMMENT_SAMPLES: "0"
           COMMENT_SAMPLE_LIMIT: "20"
           # USA-only mode + catch-everything thresholds.

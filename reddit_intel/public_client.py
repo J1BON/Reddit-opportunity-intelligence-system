@@ -100,7 +100,13 @@ class _Subreddit:
         return self._name
 
     def new(self, limit: int = 50) -> Iterator[_Submission]:
-        path = f"/r/{urllib.parse.quote(self._name, safe='')}/new.json"
+        yield from self._listing("new", limit)
+
+    def hot(self, limit: int = 25) -> Iterator[_Submission]:
+        yield from self._listing("hot", limit)
+
+    def _listing(self, kind: str, limit: int) -> Iterator[_Submission]:
+        path = f"/r/{urllib.parse.quote(self._name, safe='')}/{kind}.json"
         params = {"limit": str(int(limit)), "raw_json": "1"}
         data = self._client._get_json(path, params)
         children = ((data or {}).get("data") or {}).get("children") or []

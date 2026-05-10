@@ -39,6 +39,7 @@ from reddit_intel.config import (
     ALERT_MIN_PAYOUT_USD,
 )
 from reddit_intel.database import Database
+from reddit_intel.dedupe import brand_display_name, clean_post_title, pick_brand
 
 
 def _max_reward_usd(reward_amount: str | None) -> float:
@@ -103,8 +104,28 @@ def _build_payload(row: dict[str, Any]) -> dict[str, Any]:
 
     primary_sub = subs_list[0] if isinstance(subs_list, list) and subs_list else ""
 
+    # Recompute brand + cleaned title from the original post data so legacy
+    # rows with buggy stored ``company_name`` display correctly on re-flush.
+    first_source = sources[0] if sources and isinstance(sources[0], dict) else {}
+    source_title = (
+        row.get("post_title")
+        or row.get("post_title_clean")
+        or first_source.get("title")
+        or ""
+    )
+    primary_domain = (row.get("primary_domain") or "").strip()
+    brand_slug = pick_brand(
+        source_title,
+        row.get("ai_summary") or "",
+        [primary_domain] if primary_domain else [],
+    )
+    brand_display = brand_display_name(brand_slug)
+    title_clean = clean_post_title(source_title, max_chars=140)
+    company_out = brand_display or title_clean[:60] or (row.get("company_name") or "")
+
     return {
-        "company_name": row.get("company_name"),
+        "company_name": company_out,
+        "post_title": title_clean,
         "reward_amount": row.get("reward_amount"),
         "offer_type": row.get("offer_type"),
         "subreddit": primary_sub,

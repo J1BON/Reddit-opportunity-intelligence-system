@@ -1,6 +1,6 @@
 {
-"generated_at": "2026-05-10T22:58:54Z",
-"generated_at_ts": 1778453934.662303,
+"generated_at": "2026-05-10T23:36:56Z",
+"generated_at_ts": 1778456216.6572237,
 "total_offers": 23,
 "offer_types": {
 "general_signup": 9,
@@ -12,7 +12,9 @@
 "offers": [
 {
 "id": "CURRENT_GENERAL_SIGNUP_20_D22597985F4C2F48",
-"company": "Current",
+"company": "Looking for CPA rec: Delaware C-Corp with mixed US/EU founde",
+"brand_slug": "UNKNOWN_BRAND",
+"post_title": "Looking for CPA rec: Delaware C-Corp with mixed US/EU founders",
 "type": "general_signup",
 "reward": "$20",
 "reward_usd": 20.0,
@@ -59,7 +61,9 @@
 },
 {
 "id": "CHASE_REFERRAL_20_ED2D3E048A55B244",
-"company": "Chase",
+"company": "Bybit",
+"brand_slug": "BYBIT",
+"post_title": "Bybit EU - New Promo - €25 Bonus + $20 Card Bonus 🎁",
 "type": "referral",
 "reward": "$20",
 "reward_usd": 20.0,
@@ -108,6 +112,8 @@
 {
 "id": "ALLY_BANK_REFERRAL_NA_22C286BA2AB70C31",
 "company": "Ally Bank",
+"brand_slug": "ALLY_BANK",
+"post_title": "Ally Bank Referral Code! 💕",
 "type": "referral",
 "reward": "",
 "reward_usd": 0.0,
@@ -156,7 +162,9 @@
 },
 {
 "id": "CHIME_BANK_BONUS_500_25B00A3BE5D31695",
-"company": "Chime",
+"company": "OnePay",
+"brand_slug": "ONEPAY",
+"post_title": "$150 OnePay Cash (Walmart) - $100 from me + $50 from them",
 "type": "bank_bonus",
 "reward": "$500",
 "reward_usd": 500.0,
@@ -209,7 +217,9 @@
 },
 {
 "id": "CHASE_GENERAL_SIGNUP_100_5C3509A4A215EB3F",
-"company": "Chase",
+"company": "A simple test before you chase a new side hustle idea",
+"brand_slug": "UNKNOWN_BRAND",
+"post_title": "A simple test before you chase a new side hustle idea",
 "type": "general_signup",
 "reward": "$100",
 "reward_usd": 100.0,
@@ -255,7 +265,9 @@
 },
 {
 "id": "CHASE_BANK_BONUS_500_CF0EE6B584BAEFAC",
-"company": "Chase",
+"company": "Simplii",
+"brand_slug": "SIMPLII",
+"post_title": "Simplii Financial Referral Link Reddit: $50 for signing up! Plus the potential for a $300 direct deposit bonus! $500 in total potential…",
 "type": "bank_bonus",
 "reward": "$500",
 "reward_usd": 500.0,
@@ -313,7 +325,9 @@
 },
 {
 "id": "WANT_GENERAL_SIGNUP_7_3F42991BC2B24F78",
-"company": "Want",
+"company": "Download",
+"brand_slug": "DOWNLOAD",
+"post_title": "Want to make $7-20 in a few minutes opening a free card pack? Download “Rips by Triumph” app! Open and cash out! Code TJUKASO! US ONLY! 🇺🇸",
 "type": "general_signup",
 "reward": "$7",
 "reward_usd": 7.0,
@@ -366,7 +380,9 @@
 },
 {
 "id": "CHASE_BANK_BONUS_5_FD2D4204FA7ADFE8",
-"company": "Chase",
+"company": "Aven Advisor",
+"brand_slug": "AVEN_ADVISOR",
+"post_title": "$5, no deposit or purchase required! Just sign up to Aven Advisor credit checking app 😀",
 "type": "bank_bonus",
 "reward": "$5",
 "reward_usd": 5.0,
@@ -411,7 +427,9 @@
 },
 {
 "id": "SPOTS_SPORTSBOOK_150_9F42F061B16F6502",
-"company": "Spots",
+"company": "$150 LEGIT 2 Spots left for the month",
+"brand_slug": "UNKNOWN_BRAND",
+"post_title": "$150 LEGIT 2 Spots left for the month",
 "type": "sportsbook",
 "reward": "$150",
 "reward_usd": 150.0,
@@ -458,7 +476,9 @@
 },
 {
 "id": "DISCOUNT_CODE_REFERRAL_NA_94F407F2532F4209",
-"company": "Discount Code",
+"company": "MyProtein Discount Code - Get £15 Free When Spending £45",
+"brand_slug": "UNKNOWN_BRAND",
+"post_title": "MyProtein Discount Code - Get £15 Free When Spending £45",
 "type": "referral",
 "reward": "",
 "reward_usd": 0.0,
@@ -506,6 +526,8 @@
 {
 "id": "COINBASE_CRYPTO_SIGNUP_NA_5D7E295E91CE5683",
 "company": "Coinbase",
+"brand_slug": "COINBASE",
+"post_title": "Coinbase referral: €30 FREE BTC bonus after €30 trade (EU ONLY)",
 "type": "crypto_signup",
 "reward": "",
 "reward_usd": 0.0,
@@ -554,6 +576,8 @@
 {
 "id": "CASH_APP_GENERAL_SIGNUP_85_8FECA2195ED1208E",
 "company": "Cash App",
+"brand_slug": "CASH_APP",
+"post_title": "$85 Payout from me(offer available for 45mins)",
 "type": "general_signup",
 "reward": "$85",
 "reward_usd": 85.0,
@@ -598,7 +622,9 @@
 },
 {
 "id": "FREE_REFERRAL_10_67313346D10F858C",
-"company": "Free",
+"company": "Free $10 if you've never had tiktok",
+"brand_slug": "UNKNOWN_BRAND",
+"post_title": "Free $10 if you've never had tiktok",
 "type": "referral",
 "reward": "$10",
 "reward_usd": 10.0,
@@ -645,6 +671,8 @@
 {
 "id": "CASH_APP_REFERRAL_10_A8BEA6B9EAD16C19",
 "company": "Cash App",
+"brand_slug": "CASH_APP",
+"post_title": "😎 𝗘𝗮𝘀𝘆 $𝟭𝟬 📲 [𝗖𝗮𝘀𝗵 𝗔𝗽𝗽]",
 "type": "referral",
 "reward": "$10",
 "reward_usd": 10.0,
@@ -692,6 +720,8 @@
 {
 "id": "CASH_APP_REFERRAL_15_5197822E94522E0F",
 "company": "Cash App",
+"brand_slug": "CASH_APP",
+"post_title": "🌟𝗘𝗔𝗦𝗬 $𝟭𝟱!🌟 [Cash App Referral Bonus]",
 "type": "referral",
 "reward": "$15",
 "reward_usd": 15.0,
@@ -739,7 +769,9 @@
 },
 {
 "id": "TASK_OFFER_GENERAL_SIGNUP_45_D4DBF8A0284E434E",
-"company": "Task Offer",
+"company": "$45 Paid Remote Task for U.S. Citizens – Online Verification",
+"brand_slug": "UNKNOWN_BRAND",
+"post_title": "$45 Paid Remote Task for U.S. Citizens – Online Verification/Feedback Task",
 "type": "general_signup",
 "reward": "$45",
 "reward_usd": 45.0,
@@ -786,7 +818,9 @@
 },
 {
 "id": "CHASE_BANK_BONUS_300_F096D666FE6FD94F",
-"company": "Chase",
+"company": "Simplii",
+"brand_slug": "SIMPLII",
+"post_title": "Simplii Financial Promo Code 2026 - $50 Referral Bonus for Canadians",
 "type": "bank_bonus",
 "reward": "$300",
 "reward_usd": 300.0,
@@ -838,7 +872,9 @@
 },
 {
 "id": "HOW_REFERRAL_300_CCF9CA4A5CFE2BBB",
-"company": "How",
+"company": "How to make $20 daily",
+"brand_slug": "UNKNOWN_BRAND",
+"post_title": "How to make $20 daily",
 "type": "referral",
 "reward": "$300",
 "reward_usd": 300.0,
@@ -888,7 +924,9 @@
 },
 {
 "id": "ANYONE_GENERAL_SIGNUP_100_B6880C8E94744374",
-"company": "Anyone",
+"company": "Anyone interested in making $1 for every email you send, you",
+"brand_slug": "UNKNOWN_BRAND",
+"post_title": "Anyone interested in making $1 for every email you send, you can earn up to $100 per day (USA ONLY)",
 "type": "general_signup",
 "reward": "$100",
 "reward_usd": 100.0,
@@ -936,6 +974,8 @@
 {
 "id": "CASH_APP_CRYPTO_SIGNUP_275_75462745D0B73EE5",
 "company": "Cash App",
+"brand_slug": "CASH_APP",
+"post_title": "I will pay $275.00 via CashApp, PayPal, Crypto & Chime to those that are ~BROKE~.first come first serve.USA only",
 "type": "crypto_signup",
 "reward": "$275",
 "reward_usd": 275.0,
@@ -978,7 +1018,9 @@
 },
 {
 "id": "PLAY_GENERAL_SIGNUP_500_74235B624F931892",
-"company": "Play",
+"company": "Play games for cash 💵 US, UK, GERMANY, CANADA to the front !",
+"brand_slug": "UNKNOWN_BRAND",
+"post_title": "Play games for cash 💵 US, UK, GERMANY, CANADA to the front !",
 "type": "general_signup",
 "reward": "$500",
 "reward_usd": 500.0,
@@ -1028,7 +1070,9 @@
 },
 {
 "id": "CURRENT_GENERAL_SIGNUP_4500_09C3BCD5D5F66EB5",
-"company": "Current",
+"company": "A thank you note",
+"brand_slug": "UNKNOWN_BRAND",
+"post_title": "A thank you note",
 "type": "general_signup",
 "reward": "$4500",
 "reward_usd": 4500.0,
@@ -1074,7 +1118,9 @@
 },
 {
 "id": "UNKNOWN_BRAND_GENERAL_SIGNUP_10_AA55D4FFDB5AA14A",
-"company": "29F - check out my OF page, $10 and over 30 pics and videos - solo play just for",
+"company": "29F - check out my OF page, $10 and over 30 pics and videos ",
+"brand_slug": "UNKNOWN_BRAND",
+"post_title": "29F - check out my OF page, $10 and over 30 pics and videos - solo play just for you 😉 carolinecandyhearts7",
 "type": "general_signup",
 "reward": "$10",
 "reward_usd": 10.0,

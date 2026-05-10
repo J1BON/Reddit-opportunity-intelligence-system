@@ -55,6 +55,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
         ("prior_refresh_ts", "REAL DEFAULT 0"),
         ("api_pressure_score_snapshot", "REAL DEFAULT 0"),
         ("deferred_queue_depth_snapshot", "INTEGER DEFAULT 0"),
+        ("post_title", "TEXT DEFAULT ''"),
+        ("post_title_clean", "TEXT DEFAULT ''"),
     ):
         if col not in offer_cols:
             conn.execute(f"ALTER TABLE canonical_offers ADD COLUMN {col} {typ}")
