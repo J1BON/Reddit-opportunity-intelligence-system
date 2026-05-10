@@ -40,17 +40,20 @@ HIGH_PRIORITY_SUBREDDITS = frozenset(
     }
 )
 
-MEDIUM_PRIORITY_SUBREDDITS = frozenset({"androidapps", "Collaboration", "startups"})
+MEDIUM_PRIORITY_SUBREDDITS: frozenset[str] = frozenset()
 
 EXCLUDED_SUBREDDITS = frozenset(
     {
-        "FreeCash",
         "AndroidAppTesters",
+        "Collaboration",
         "Entrepreneur",
+        "FreeCash",
+        "androidapps",
         "gambling",
         "hireforgigs",
         "remoteworking",
         "sportsbook",
+        "startups",
     }
 )
 

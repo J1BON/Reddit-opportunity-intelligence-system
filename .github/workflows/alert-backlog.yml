@@ -1,0 +1,73 @@
+name: Alert backlog
+
+# One-shot manual run that fires Discord alerts for canonical offers ALREADY
+# in the DB. Use this once after Discord secrets become available, so the
+# bonuses you ingested before the bot could ping anywhere show up in your
+# channel. After this initial flush, the regular `intel-cron` handles new
+# opportunities normally.
+
+on:
+  workflow_dispatch:
+    inputs:
+      hours:
+        description: "How far back (hours) to look in canonical_offers. Default 336 = 14 days."
+        required: false
+        default: "336"
+      max:
+        description: "Hard cap on alerts fired this run, to avoid flooding Discord. Default 25."
+        required: false
+        default: "25"
+      dry_run:
+        description: "If true, print what WOULD be sent without actually firing."
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+concurrency:
+  group: reddit-intel-alert-backlog
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  flush:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repo (need data/reddit_intel.db)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Fire backlog alerts
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_ALERT_CHANNEL_ID: ${{ secrets.DISCORD_ALERT_CHANNEL_ID }}
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          DRY="${{ inputs.dry_run }}"
+          ARGS="--hours ${{ inputs.hours }} --max ${{ inputs.max }}"
+          if [ "$DRY" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          echo "[backlog] python -m scripts.alert_backlog $ARGS"
+          python -m scripts.alert_backlog $ARGS
