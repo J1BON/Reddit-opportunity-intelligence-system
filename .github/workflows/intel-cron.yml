@@ -51,7 +51,7 @@ permissions:
 jobs:
   fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 9
+    timeout-minutes: 12
 
     steps:
       - name: Checkout repo (includes data/reddit_intel.db state)
@@ -131,6 +131,13 @@ jobs:
           POSTS_PER_SUB_FETCH: "50"
           FETCH_COMMENT_SAMPLES: "0"
           COMMENT_SAMPLE_LIMIT: "20"
+          # Site-wide discovery — search Reddit-wide for offer-shaped posts,
+          # not just the hardcoded monitored sub list. Queries rotate across
+          # ticks so the API budget stays ~constant.
+          DISCOVERY_ENABLED: "1"
+          DISCOVERY_QUERIES_PER_TICK: "5"
+          DISCOVERY_RESULTS_PER_QUERY: "25"
+          DISCOVERY_TIME_FILTER: "hour"
           # USA-only mode + catch-everything thresholds.
           # Non-USA posts (UK/CA/EU/non-us) are dropped at ingest.
           # Alert fires on $1+ rewards OR opportunity-score >= 50.

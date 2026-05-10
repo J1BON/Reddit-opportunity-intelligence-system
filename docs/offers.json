@@ -1,6 +1,6 @@
 {
-"generated_at": "2026-05-10T23:39:57Z",
-"generated_at_ts": 1778456397.6787174,
+"generated_at": "2026-05-10T23:46:39Z",
+"generated_at_ts": 1778456799.0764613,
 "total_offers": 23,
 "offer_types": {
 "general_signup": 9,
@@ -9,6 +9,29 @@
 "crypto_signup": 2,
 "sportsbook": 1
 },
+"top_subreddits": {
+"usemyreferral": 2,
+"referralscity": 2,
+"refferalsfordummies": 2,
+"referallinks": 2,
+"startups": 1,
+"referralcodes": 1,
+"referrallinks": 1,
+"signupsforpay": 1,
+"sidehustle": 1,
+"referrallink": 1,
+"referralnotreferal": 1,
+"referral": 1,
+"referrallinksnation": 1,
+"referring": 1,
+"referraltrains": 1,
+"referrallinksshare": 1,
+"referrallinks4": 1,
+"referralforpay": 1,
+"referalcodes": 1,
+"promocodeshare": 1
+},
+"discovered_subreddits": [],
 "offers": [
 {
 "id": "CURRENT_GENERAL_SIGNUP_20_D22597985F4C2F48",

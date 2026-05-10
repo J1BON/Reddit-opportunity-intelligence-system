@@ -181,11 +181,35 @@ def export(out_path: Path, limit: int | None = None) -> dict[str, Any]:
         t = o.get("type") or "unknown"
         type_counts[t] = type_counts.get(t, 0) + 1
 
+    sub_counts: dict[str, int] = {}
+    for o in offers:
+        for s in o.get("subreddits") or []:
+            sl = str(s).lower()
+            if sl:
+                sub_counts[sl] = sub_counts.get(sl, 0) + 1
+
+    try:
+        discovered = db.list_discovered_subreddits(limit=40)
+    except Exception:
+        discovered = []
+
     payload = {
         "generated_at": _iso_z(time.time()),
         "generated_at_ts": time.time(),
         "total_offers": len(offers),
         "offer_types": dict(sorted(type_counts.items(), key=lambda kv: -kv[1])),
+        "top_subreddits": dict(
+            sorted(sub_counts.items(), key=lambda kv: -kv[1])[:20]
+        ),
+        "discovered_subreddits": [
+            {
+                "subreddit": d.get("subreddit"),
+                "hit_count": int(d.get("hit_count") or 0),
+                "first_seen": _iso_z(d.get("first_seen")),
+                "last_seen": _iso_z(d.get("last_seen")),
+            }
+            for d in discovered
+        ],
         "offers": offers,
     }
 

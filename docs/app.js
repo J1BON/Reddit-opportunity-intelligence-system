@@ -208,6 +208,33 @@ function buildTypeOptions(typeCounts) {
   for (const [t, n] of opts.slice(0, 10)) el.chips.appendChild(mkChip(t, t, n));
 
   syncChipActive();
+  renderDiscovered();
+}
+
+function renderDiscovered() {
+  const host = document.getElementById("discovered-list");
+  if (!host) return;
+  host.innerHTML = "";
+  const items = (state.data && state.data.discovered_subreddits) || [];
+  if (!items.length) {
+    host.innerHTML =
+      '<div style="grid-column:1/-1;color:var(--muted)">No subs discovered yet — runs every cron tick.</div>';
+    return;
+  }
+  for (const d of items.slice(0, 40)) {
+    const row = document.createElement("div");
+    row.className = "disc-item";
+    const sub = (d.subreddit || "").toLowerCase();
+    row.innerHTML =
+      '<a href="https://reddit.com/r/' +
+      encodeURIComponent(sub) +
+      '" target="_blank" rel="noopener">r/' +
+      sub +
+      '</a><span class="hits">' +
+      (d.hit_count || 0) +
+      "</span>";
+    host.appendChild(row);
+  }
 }
 
 function mkChip(type, label, count) {

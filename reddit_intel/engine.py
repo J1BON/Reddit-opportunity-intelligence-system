@@ -881,6 +881,11 @@ def run_fetch_cycle(reddit: "praw.Reddit", db: Database) -> int:
     # /new. /hot adds a single extra request per sub so we gate it.
     scan_hot_this_tick = int(time.time() // 600) % 6 == 0
 
+    # Site-wide discovery — runs every tick by default, picking a rotating
+    # shard of high-signal queries. Imported here (and not at module top)
+    # to avoid a circular import.
+    from reddit_intel.discovery import run_discovery_cycle
+
     try:
         for sub_name in fetch_order:
             time.sleep(th.sleep_backoff_seconds())
@@ -919,6 +924,14 @@ def run_fetch_cycle(reddit: "praw.Reddit", db: Database) -> int:
                     th.record_rate_limited()
                     db.enqueue_deferred_scan(sub_name, priority=10, reason="rate_limit")
                 continue
+
+        # Site-wide discovery search — runs after the targeted sub scans so
+        # the API-pressure throttle has accurate state to work with.
+        try:
+            disc = run_discovery_cycle(reddit, db)
+            count += int(disc.get("ingested", 0))
+        except Exception as ex:  # noqa: BLE001
+            print(f"[engine] discovery cycle failed: {ex}", flush=True)
     finally:
         th.persist(db)
     return count

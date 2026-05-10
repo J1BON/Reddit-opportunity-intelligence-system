@@ -251,6 +251,59 @@ COMMENT_SAMPLE_LIMIT = max(1, min(200, int(os.getenv("COMMENT_SAMPLE_LIMIT", "40
 # HEAD probe on first HTTPS referral link (extra latency). 0/false by default.
 CHECK_URL_INTEGRITY = os.getenv("CHECK_URL_INTEGRITY", "0").strip().lower() in ("1", "true", "yes", "on")
 
+# ----------------------------------------------------------------------
+# Site-wide discovery (Reddit-wide search beyond our monitored sub list)
+# ----------------------------------------------------------------------
+
+DISCOVERY_ENABLED = os.getenv("DISCOVERY_ENABLED", "1").strip().lower() in (
+    "1", "true", "yes", "on",
+)
+DISCOVERY_QUERIES_PER_TICK = max(1, int(os.getenv("DISCOVERY_QUERIES_PER_TICK", "5")))
+DISCOVERY_RESULTS_PER_QUERY = max(1, min(100, int(os.getenv("DISCOVERY_RESULTS_PER_QUERY", "25"))))
+DISCOVERY_TIME_FILTER = os.getenv("DISCOVERY_TIME_FILTER", "hour").strip().lower()
+
+# Each query is a high-signal phrase from the money-making vocabulary.
+# We rotate through these across cron ticks so every query gets exercised
+# at least once per ~hour even at the 10-min cadence.
+DISCOVERY_QUERIES: tuple[str, ...] = (
+    "signup bonus",
+    "referral code",
+    "promo code",
+    "invite code",
+    "free $20",
+    "free $50",
+    "free $100",
+    "free $200",
+    "earn $",
+    "welcome bonus",
+    "deposit bonus",
+    "deposit match",
+    "checking bonus",
+    "savings bonus",
+    "ach bonus",
+    "direct deposit bonus",
+    "no deposit bonus",
+    "free stock",
+    "free crypto",
+    "free bitcoin",
+    "instant withdrawal",
+    "cash bonus",
+    "$25 bonus",
+    "$50 bonus",
+    "$100 bonus",
+    "$200 bonus",
+    "bank bonus",
+    "brokerage bonus",
+    "fintech referral",
+    "launch bonus",
+    "early access bonus",
+    "new app pays",
+    "app sign up bonus",
+    "referral train",
+    "boosted referral",
+    "limited time promo",
+)
+
 REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID", "")
 REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET", "")
 REDDIT_USERNAME = os.getenv("REDDIT_USERNAME", "")

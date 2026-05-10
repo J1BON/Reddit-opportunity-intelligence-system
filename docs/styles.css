@@ -188,6 +188,37 @@ button:hover { background: #1d242c; }
   font-size: 11px;
 }
 
+.discovered {
+  margin: 4px 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.discovered summary {
+  cursor: pointer;
+  padding: 4px 0;
+  user-select: none;
+}
+.discovered summary:hover { color: var(--text); }
+.disc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 6px 10px;
+  margin-top: 6px;
+  padding: 8px;
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-family: var(--mono);
+}
+.disc-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text);
+}
+.disc-item a { color: var(--text); }
+.disc-item .hits { color: var(--accent); opacity: 0.85; }
+
 /* ---------- grid ---------- */
 #grid {
   display: grid;

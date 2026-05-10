@@ -197,6 +197,39 @@ class PublicReddit:
     def subreddit(self, name: str) -> _Subreddit:
         return _Subreddit(self, name)
 
+    def search_all(
+        self,
+        query: str,
+        sort: str = "new",
+        t: str = "hour",
+        limit: int = 25,
+    ) -> Iterator[_Submission]:
+        """Site-wide Reddit search via the public ``/search.json`` endpoint.
+
+        Each result is wrapped as a ``_Submission`` with a freshly constructed
+        ``_Subreddit`` derived from the result's own ``data["subreddit"]``,
+        so downstream code (`str(sub.subreddit)`) keeps working.
+        """
+        params = {
+            "q": query,
+            "sort": sort,
+            "t": t,
+            "limit": str(int(limit)),
+            "restrict_sr": "",
+            "include_over_18": "on",
+            "raw_json": "1",
+        }
+        path = "/search.json"
+        data = self._get_json(path, params)
+        children = ((data or {}).get("data") or {}).get("children") or []
+        for ch in children:
+            if ch.get("kind") != "t3":
+                continue
+            d = ch.get("data") or {}
+            sub_name = str(d.get("subreddit") or "")
+            sub = _Subreddit(self, sub_name)
+            yield _Submission(self, d, sub)
+
     def _throttle(self) -> None:
         gap = time.time() - self._last_call
         if gap < self._min_interval:

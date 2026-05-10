@@ -127,6 +127,14 @@ def _migrate(conn: sqlite3.Connection) -> None:
             reliability_score REAL NOT NULL DEFAULT 50,
             updated_at REAL NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS discovered_subreddits (
+            subreddit TEXT PRIMARY KEY,
+            first_seen REAL NOT NULL,
+            last_seen REAL NOT NULL,
+            hit_count INTEGER NOT NULL DEFAULT 0,
+            promoted INTEGER NOT NULL DEFAULT 0
+        );
         """
     )
     conn.commit()
@@ -641,6 +649,47 @@ class Database:
                 conn.execute(f"DELETE FROM deferred_scan_queue WHERE id IN ({qmarks})", picked_ids)
             conn.commit()
         return out
+
+    def record_discovered_subreddits(self, hits_by_sub: dict[str, int]) -> None:
+        """Upsert hit counts for subs we found via site-wide discovery.
+
+        Hits where the same sub already appears in ``rank_subreddits_for_fetch``
+        are still recorded; that's how we tell whether discovery is bringing
+        anything genuinely new vs. just re-finding our existing monitored set.
+        """
+        if not hits_by_sub:
+            return
+        now = time.time()
+        with self.connect() as conn:
+            for sub, inc in hits_by_sub.items():
+                sl = (sub or "").strip().lower()
+                if not sl:
+                    continue
+                conn.execute(
+                    """
+                    INSERT INTO discovered_subreddits (
+                        subreddit, first_seen, last_seen, hit_count, promoted
+                    ) VALUES (?, ?, ?, ?, 0)
+                    ON CONFLICT(subreddit) DO UPDATE SET
+                        last_seen = excluded.last_seen,
+                        hit_count = discovered_subreddits.hit_count + excluded.hit_count
+                    """,
+                    (sl, now, now, int(inc)),
+                )
+            conn.commit()
+
+    def list_discovered_subreddits(self, limit: int = 50) -> list[dict[str, Any]]:
+        with self.connect() as conn:
+            cur = conn.execute(
+                """
+                SELECT subreddit, first_seen, last_seen, hit_count, promoted
+                FROM discovered_subreddits
+                ORDER BY hit_count DESC, last_seen DESC
+                LIMIT ?
+                """,
+                (int(limit),),
+            )
+            return [dict(r) for r in cur.fetchall()]
 
     def rank_subreddits_for_fetch(self, subs: list[str]) -> list[str]:
         hp = {x.lower() for x in HIGH_PRIORITY_SUBREDDITS}
