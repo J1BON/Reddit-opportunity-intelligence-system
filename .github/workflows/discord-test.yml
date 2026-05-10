@@ -1,0 +1,64 @@
+name: Discord test ping
+
+# Manually runnable workflow that ONLY sends a test alert via the same
+# notify_alert_destinations() the cron uses. No fetch, no DB writes.
+# Use this to verify DISCORD_BOT_TOKEN + DISCORD_ALERT_CHANNEL_ID are correct.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Send Discord test alert
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_ALERT_CHANNEL_ID: ${{ secrets.DISCORD_ALERT_CHANNEL_ID }}
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          python - <<'PY'
+          import os, sys
+          from reddit_intel.alerts import notify_alert_destinations
+
+          have_bot  = bool(os.getenv("DISCORD_BOT_TOKEN")) and bool(os.getenv("DISCORD_ALERT_CHANNEL_ID"))
+          have_hook = bool(os.getenv("ALERT_WEBHOOK_URL"))
+
+          print(f"[test] DISCORD_BOT_TOKEN present:        {have_bot}")
+          print(f"[test] DISCORD_ALERT_CHANNEL_ID present: {bool(os.getenv('DISCORD_ALERT_CHANNEL_ID'))}")
+          print(f"[test] ALERT_WEBHOOK_URL present:        {have_hook}")
+
+          if not (have_bot or have_hook):
+              print("::error::No alert destinations configured. Set DISCORD_BOT_TOKEN + DISCORD_ALERT_CHANNEL_ID (or ALERT_WEBHOOK_URL) in repo Settings → Secrets and variables → Actions.")
+              sys.exit(1)
+
+          notify_alert_destinations(
+              "Reddit Intel — test ping from GitHub Actions. "
+              "If you can read this, hosting and Discord wiring are correct."
+          )
+          print("[test] Sent. Check your Discord channel within ~5 seconds.")
+          PY
