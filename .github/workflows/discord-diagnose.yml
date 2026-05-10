@@ -1,0 +1,165 @@
+name: Discord diagnose
+
+# Lists every server (guild) and every text-capable channel the bot can see,
+# with their IDs. Use this when discord-test returns HTTP 404 "Unknown Channel".
+#
+# Reads:  secrets.DISCORD_BOT_TOKEN, secrets.DISCORD_ALERT_CHANNEL_ID
+# Sends:  one test POST to DISCORD_ALERT_CHANNEL_ID and reports the exact
+#         error (or success) for it.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Probe Discord
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_ALERT_CHANNEL_ID: ${{ secrets.DISCORD_ALERT_CHANNEL_ID }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          python - <<'PY'
+          import json, os, sys, urllib.request, urllib.error
+
+          tok = (os.getenv("DISCORD_BOT_TOKEN") or "").strip()
+          cid = (os.getenv("DISCORD_ALERT_CHANNEL_ID") or "").strip()
+
+          print("=" * 60)
+          print("INPUT CHECK")
+          print("=" * 60)
+          print(f"DISCORD_BOT_TOKEN length: {len(tok)} (expected: 70-90+ chars)")
+          if tok:
+              print(f"DISCORD_BOT_TOKEN preview: {tok[:8]}... (first 8 chars only)")
+              if " " in tok or "\n" in tok or "\r" in tok or "\t" in tok:
+                  print("::warning::Token contains whitespace. Re-copy without surrounding spaces.")
+              if tok.lower().startswith("bot "):
+                  print("::warning::Token already starts with 'Bot ' prefix. The code will add it; you may have a double prefix.")
+          else:
+              print("::error::DISCORD_BOT_TOKEN is empty.")
+              sys.exit(1)
+
+          print(f"DISCORD_ALERT_CHANNEL_ID raw: '{cid}'")
+          print(f"DISCORD_ALERT_CHANNEL_ID length: {len(cid)} (expected: 17-20 digits)")
+          if not cid.isdigit():
+              print("::error::DISCORD_ALERT_CHANNEL_ID is not purely digits — likely has spaces, quotes, or wrong content.")
+
+          auth = f"Bot {tok}"
+          ua   = "RedditIntelDiagnose (urllib)"
+
+          def discord_get(path):
+              req = urllib.request.Request(
+                  f"https://discord.com/api/v10{path}",
+                  headers={"Authorization": auth, "User-Agent": ua},
+              )
+              try:
+                  with urllib.request.urlopen(req, timeout=15) as r:
+                      return r.status, json.loads(r.read().decode("utf-8"))
+              except urllib.error.HTTPError as ex:
+                  try:
+                      body = ex.read().decode("utf-8", errors="replace")
+                  except Exception:
+                      body = ""
+                  return ex.code, body
+
+          print()
+          print("=" * 60)
+          print("WHO IS THIS BOT? (GET /users/@me)")
+          print("=" * 60)
+          status, me = discord_get("/users/@me")
+          if status != 200:
+              print(f"::error::HTTP {status} from /users/@me. Body: {me}")
+              print("This means the bot token is invalid. Discord Developer Portal -> your app -> Bot -> Reset Token -> save the WHOLE string in the GitHub secret.")
+              sys.exit(1)
+          print(f"Bot logged in as: {me.get('username')}#{me.get('discriminator')} (id={me.get('id')})")
+
+          print()
+          print("=" * 60)
+          print("SERVERS (GUILDS) THE BOT IS IN  (GET /users/@me/guilds)")
+          print("=" * 60)
+          status, guilds = discord_get("/users/@me/guilds")
+          if status != 200 or not isinstance(guilds, list):
+              print(f"::error::HTTP {status} from /users/@me/guilds. Body: {guilds}")
+              sys.exit(1)
+          if not guilds:
+              print("::error::This bot is not in any server. Invite it via OAuth2 URL Generator (scope=bot, perms=Send Messages) and re-run.")
+              sys.exit(1)
+          for g in guilds:
+              print(f"  - {g.get('name'):40s}  guild_id={g.get('id')}")
+
+          print()
+          print("=" * 60)
+          print("CHANNELS THE BOT CAN SEE IN EACH SERVER")
+          print("=" * 60)
+          target_match = None
+          for g in guilds:
+              gid = g.get("id")
+              gname = g.get("name")
+              status, channels = discord_get(f"/guilds/{gid}/channels")
+              print()
+              print(f"Server: {gname} (guild_id={gid})")
+              if status != 200 or not isinstance(channels, list):
+                  print(f"  ::warning::HTTP {status} listing channels: {channels}")
+                  continue
+              # text-postable channel types: 0 (text), 5 (announcement), 11 (public thread), 12 (private thread), 15 (forum-thread parent)
+              postable = [c for c in channels if c.get("type") in (0, 5, 10, 11, 12, 15)]
+              if not postable:
+                  print("  (no text-capable channels visible to the bot)")
+              for c in postable:
+                  marker = "  <-- THIS MATCHES YOUR SECRET" if str(c.get("id")) == cid else ""
+                  if str(c.get("id")) == cid:
+                      target_match = c
+                  print(f"  - #{c.get('name'):30s}  channel_id={c.get('id')}  type={c.get('type')}{marker}")
+
+          print()
+          print("=" * 60)
+          print("DOES DISCORD_ALERT_CHANNEL_ID POINT TO A VISIBLE CHANNEL?")
+          print("=" * 60)
+          if target_match:
+              print(f"YES. #{target_match.get('name')} in a server the bot is in.")
+          else:
+              print(f"NO. The ID '{cid}' does not match any channel the bot can see.")
+              print()
+              print("Pick a channel_id from the list above (one inside a server you control)")
+              print("and update the GitHub secret DISCORD_ALERT_CHANNEL_ID. Then re-run discord-test.")
+              print()
+              print("How to copy the right ID in Discord:")
+              print("  1. Discord -> User Settings (gear) -> Advanced -> enable Developer Mode")
+              print("  2. RIGHT-CLICK the CHANNEL name in the channel list (NOT the server name in the left rail)")
+              print("  3. Select 'Copy Channel ID' (NOT 'Copy Server ID')")
+              sys.exit(1)
+
+          print()
+          print("=" * 60)
+          print("TRYING TO SEND A REAL TEST MESSAGE TO THAT CHANNEL")
+          print("=" * 60)
+          body = json.dumps({"content": "Reddit Intel diagnose: bot CAN post here. You're good."}).encode()
+          req = urllib.request.Request(
+              f"https://discord.com/api/v10/channels/{cid}/messages",
+              data=body,
+              headers={"Authorization": auth, "Content-Type": "application/json", "User-Agent": ua},
+              method="POST",
+          )
+          try:
+              with urllib.request.urlopen(req, timeout=15) as r:
+                  print(f"HTTP {r.status} — message sent. Check Discord.")
+          except urllib.error.HTTPError as ex:
+              err_body = ex.read().decode("utf-8", errors="replace")
+              print(f"::error::HTTP {ex.code} from POST messages. Body: {err_body}")
+              if ex.code == 403:
+                  print("Channel is visible but bot lacks Send Messages / View Channel here.")
+                  print("Fix: server Settings -> Roles -> bot's role -> enable 'View Channel' + 'Send Messages';")
+                  print("     OR channel Edit Channel -> Permissions -> Add the bot/role -> grant both.")
+              sys.exit(1)
+          PY
