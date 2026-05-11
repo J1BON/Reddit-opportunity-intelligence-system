@@ -894,6 +894,11 @@ def run_fetch_cycle(reddit: "praw.Reddit", db: Database) -> int:
 
     smoke = os.getenv("SMOKE_FETCH", "").strip().lower() in ("1", "true", "yes", "on")
     posts_cap = min(5, POSTS_PER_SUB_FETCH) if smoke else POSTS_PER_SUB_FETCH
+    cycle_started = time.time()
+    posts_seen = 0
+    posts_429 = 0
+    posts_errors = 0
+    discovery_stats: dict[str, int] = {"queries": 0, "candidates": 0, "ingested": 0}
 
     ranked_full = db.rank_subreddits_for_fetch(list(MONITORED_SUBREDDITS))
     ranked = _shard_subs(ranked_full)
@@ -939,6 +944,8 @@ def run_fetch_cycle(reddit: "praw.Reddit", db: Database) -> int:
     try:
         for sub_name in fetch_order:
             time.sleep(th.sleep_backoff_seconds())
+            sub_seen = 0
+            sub_kept = 0
             try:
                 sub = reddit.subreddit(sub_name)
                 seen_ids: set[str] = set()
@@ -946,10 +953,12 @@ def run_fetch_cycle(reddit: "praw.Reddit", db: Database) -> int:
                     pid = getattr(post, "name", None) or getattr(post, "id", "")
                     if pid:
                         seen_ids.add(str(pid))
+                    sub_seen += 1
                     if process_submission(
                         post, db, fetch_comments=fc_global, comment_sample_cap=cap
                     ):
                         count += 1
+                        sub_kept += 1
                 if scan_hot_this_tick and hasattr(sub, "hot"):
                     time.sleep(th.sleep_backoff_seconds())
                     try:
@@ -957,12 +966,19 @@ def run_fetch_cycle(reddit: "praw.Reddit", db: Database) -> int:
                             pid = getattr(post, "name", None) or getattr(post, "id", "")
                             if pid and str(pid) in seen_ids:
                                 continue
+                            sub_seen += 1
                             if process_submission(
                                 post, db, fetch_comments=fc_global, comment_sample_cap=cap
                             ):
                                 count += 1
+                                sub_kept += 1
                     except Exception:
                         pass
+                posts_seen += sub_seen
+                print(
+                    f"[fetch] r/{sub_name} seen={sub_seen} kept={sub_kept}",
+                    flush=True,
+                )
             except Exception as ex:
                 low = str(ex).lower()
                 if (
@@ -973,6 +989,13 @@ def run_fetch_cycle(reddit: "praw.Reddit", db: Database) -> int:
                 ):
                     th.record_rate_limited()
                     db.enqueue_deferred_scan(sub_name, priority=10, reason="rate_limit")
+                    posts_429 += 1
+                else:
+                    posts_errors += 1
+                print(
+                    f"[fetch] r/{sub_name} ERROR ({type(ex).__name__}): {str(ex)[:160]}",
+                    flush=True,
+                )
                 continue
 
         # Site-wide discovery — skipped in smoke mode (fast local check).
@@ -980,11 +1003,103 @@ def run_fetch_cycle(reddit: "praw.Reddit", db: Database) -> int:
             try:
                 disc = run_discovery_cycle(reddit, db)
                 count += int(disc.get("ingested", 0))
+                discovery_stats = {
+                    "queries": int(disc.get("queries", 0)),
+                    "candidates": int(disc.get("candidates", 0)),
+                    "ingested": int(disc.get("ingested", 0)),
+                }
             except Exception as ex:  # noqa: BLE001
                 print(f"[engine] discovery cycle failed: {ex}", flush=True)
     finally:
         th.persist(db)
+        _persist_cycle_stats(
+            cycle_started=cycle_started,
+            fetch_order=fetch_order,
+            posts_seen=posts_seen,
+            posts_kept=count - discovery_stats["ingested"],
+            posts_429=posts_429,
+            posts_errors=posts_errors,
+            discovery=discovery_stats,
+        )
+        _maybe_heartbeat(
+            posts_seen=posts_seen,
+            posts_kept=count - discovery_stats["ingested"],
+            posts_429=posts_429,
+            posts_errors=posts_errors,
+            discovery=discovery_stats,
+            subs=len(fetch_order),
+            elapsed_s=time.time() - cycle_started,
+        )
     return count
+
+
+def _persist_cycle_stats(
+    *,
+    cycle_started: float,
+    fetch_order: list[str],
+    posts_seen: int,
+    posts_kept: int,
+    posts_429: int,
+    posts_errors: int,
+    discovery: dict[str, int],
+) -> None:
+    """Write a small JSON file with the just-finished cycle's stats so the
+    cron commit picks it up. This is the only way to diagnose the cron
+    without an authenticated GitHub Actions log session.
+    """
+    payload = {
+        "cycle_started_ts": cycle_started,
+        "cycle_started_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(cycle_started)),
+        "elapsed_seconds": round(time.time() - cycle_started, 2),
+        "subs_attempted": len(fetch_order),
+        "subs": list(fetch_order),
+        "posts_seen": posts_seen,
+        "posts_kept": posts_kept,
+        "rate_limited_subs": posts_429,
+        "errored_subs": posts_errors,
+        "discovery": discovery,
+    }
+    try:
+        from pathlib import Path
+
+        out = Path(__file__).resolve().parents[1] / "data" / "last_cycle_stats.json"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    except Exception as ex:  # noqa: BLE001
+        print(f"[engine] failed to persist cycle stats: {ex}", flush=True)
+
+
+def _maybe_heartbeat(
+    *,
+    posts_seen: int,
+    posts_kept: int,
+    posts_429: int,
+    posts_errors: int,
+    discovery: dict[str, int],
+    subs: int,
+    elapsed_s: float,
+) -> None:
+    """When HEARTBEAT_DISCORD=1, post a one-line cycle summary to Discord.
+
+    Lets the user *see* the bot is alive even on quiet hours when no offer
+    cleared the alert thresholds. Suppressed silently if no destination is
+    configured (alerts.notify_alert_destinations handles that gracefully).
+    """
+    if os.getenv("HEARTBEAT_DISCORD", "").strip().lower() not in ("1", "true", "yes", "on"):
+        return
+    try:
+        from reddit_intel.alerts import notify_alert_destinations
+
+        notify_alert_destinations(
+            "Reddit Intel heartbeat: "
+            f"subs={subs} posts_seen={posts_seen} posts_kept={posts_kept} "
+            f"429={posts_429} errors={posts_errors} "
+            f"discovery_q={discovery.get('queries', 0)} "
+            f"discovery_kept={discovery.get('ingested', 0)} "
+            f"elapsed={elapsed_s:.1f}s"
+        )
+    except Exception as ex:  # noqa: BLE001
+        print(f"[engine] heartbeat failed: {ex}", flush=True)
 
 
 def run_report(db: Database, window_seconds: float) -> str:

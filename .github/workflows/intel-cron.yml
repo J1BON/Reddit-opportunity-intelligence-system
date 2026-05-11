@@ -11,7 +11,9 @@ name: Reddit Intel cron
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    # Off-the-hour minutes — GitHub heavily de-prioritises */N schedules from
+    # free-tier repos that coincide with the top of the hour.
+    - cron: "3,13,23,33,43,53 * * * *"
   push:
     branches: [main]
     paths:
@@ -144,6 +146,9 @@ jobs:
           USA_ONLY_STRICT: "1"
           ALERT_MIN_PAYOUT_USD: "1"
           ALERT_MIN_OPPORTUNITY_SCORE: "50"
+          # Posts a one-line cycle summary to Discord every run so the channel
+          # shows the bot is alive even when no offer cleared the thresholds.
+          HEARTBEAT_DISCORD: "1"
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           DISCORD_ALERT_CHANNEL_ID: ${{ secrets.DISCORD_ALERT_CHANNEL_ID }}
           ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
@@ -151,6 +156,8 @@ jobs:
         run: |
           mkdir -p data reports
           python run.py --once
+          echo "--- last_cycle_stats.json ---"
+          cat data/last_cycle_stats.json 2>/dev/null || echo "(no stats file written)"
 
       - name: Generate report (only on manual dispatch with report=true)
         if: github.event_name == 'workflow_dispatch' && inputs.report == 'true' && inputs.test_alert != 'true'
@@ -187,6 +194,9 @@ jobs:
 
           mkdir -p /tmp/intel-artifacts/reports
           cp -f data/reddit_intel.db /tmp/intel-artifacts/reddit_intel.db
+          if [ -f data/last_cycle_stats.json ]; then
+            cp -f data/last_cycle_stats.json /tmp/intel-artifacts/last_cycle_stats.json
+          fi
           if [ -d reports ] && [ -n "$(ls -A reports 2>/dev/null)" ]; then
             cp -r reports/. /tmp/intel-artifacts/reports/
           fi
@@ -201,6 +211,9 @@ jobs:
 
             mkdir -p data reports docs
             cp -f /tmp/intel-artifacts/reddit_intel.db data/reddit_intel.db
+            if [ -f /tmp/intel-artifacts/last_cycle_stats.json ]; then
+              cp -f /tmp/intel-artifacts/last_cycle_stats.json data/last_cycle_stats.json
+            fi
             if [ -n "$(ls -A /tmp/intel-artifacts/reports 2>/dev/null)" ]; then
               cp -r /tmp/intel-artifacts/reports/. reports/
             fi
