@@ -1031,6 +1031,7 @@ def run_fetch_cycle(reddit: "praw.Reddit", db: Database) -> int:
             discovery=discovery_stats,
             subs=len(fetch_order),
             elapsed_s=time.time() - cycle_started,
+            error_samples=error_samples,
         )
     return count
 
@@ -1082,26 +1083,64 @@ def _maybe_heartbeat(
     discovery: dict[str, int],
     subs: int,
     elapsed_s: float,
+    error_samples: list[str] | None = None,
 ) -> None:
     """When HEARTBEAT_DISCORD=1, post a one-line cycle summary to Discord.
 
-    Lets the user *see* the bot is alive even on quiet hours when no offer
-    cleared the alert thresholds. Suppressed silently if no destination is
-    configured (alerts.notify_alert_destinations handles that gracefully).
+    When every sub errored with 403 (Reddit blocking the runner IP), promote
+    the message to an actionable ACTION REQUIRED so the channel always tells
+    the operator exactly what to fix instead of looking healthy-but-empty.
     """
     if os.getenv("HEARTBEAT_DISCORD", "").strip().lower() not in ("1", "true", "yes", "on"):
         return
     try:
         from reddit_intel.alerts import notify_alert_destinations
 
-        notify_alert_destinations(
-            "Reddit Intel heartbeat: "
-            f"subs={subs} posts_seen={posts_seen} posts_kept={posts_kept} "
-            f"429={posts_429} errors={posts_errors} "
-            f"discovery_q={discovery.get('queries', 0)} "
-            f"discovery_kept={discovery.get('ingested', 0)} "
-            f"elapsed={elapsed_s:.1f}s"
+        samples = error_samples or []
+        ip_blocked = (
+            subs > 0
+            and posts_errors == subs
+            and any("403" in s and "Blocked" in s for s in samples)
         )
+        repo = os.getenv("GITHUB_REPOSITORY", "")
+        secrets_url = (
+            f"https://github.com/{repo}/settings/secrets/actions" if repo else
+            "your repo's Settings > Secrets and variables > Actions"
+        )
+
+        if ip_blocked:
+            msg = (
+                "**ACTION REQUIRED — Reddit Intel is blocked by Reddit's WAF**\n"
+                f"Every sub fetch this cycle returned HTTP 403 Blocked "
+                f"({posts_errors}/{subs} subs, "
+                f"{discovery.get('candidates', 0)} discovery candidates). "
+                "Reddit refuses the GitHub Actions egress on the public JSON "
+                "endpoints, so the bot must switch to OAuth.\n"
+                "**Fix (5 min, one-time):**\n"
+                "1. Open https://www.reddit.com/prefs/apps -> "
+                "*create another app...* -> type **script** -> redirect uri "
+                "`http://localhost:8080` -> Create app.\n"
+                "2. Copy the 14-char string under the app name "
+                "(client_id) and the longer `secret`.\n"
+                f"3. In **{secrets_url}** add four repo secrets:\n"
+                "   - `REDDIT_CLIENT_ID` = the 14-char string\n"
+                "   - `REDDIT_CLIENT_SECRET` = the secret\n"
+                "   - `REDDIT_USERNAME` = your Reddit username\n"
+                "   - `REDDIT_PASSWORD` = your Reddit password\n"
+                "4. Re-run the *Reddit Intel cron* workflow once "
+                "(Actions tab -> Run workflow). PRAW activates "
+                "automatically and the 403s disappear."
+            )
+        else:
+            msg = (
+                "Reddit Intel heartbeat: "
+                f"subs={subs} posts_seen={posts_seen} posts_kept={posts_kept} "
+                f"429={posts_429} errors={posts_errors} "
+                f"discovery_q={discovery.get('queries', 0)} "
+                f"discovery_kept={discovery.get('ingested', 0)} "
+                f"elapsed={elapsed_s:.1f}s"
+            )
+        notify_alert_destinations(msg)
     except Exception as ex:  # noqa: BLE001
         print(f"[engine] heartbeat failed: {ex}", flush=True)
 

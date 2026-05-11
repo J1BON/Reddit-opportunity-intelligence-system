@@ -32,11 +32,26 @@ This is **not** real-time Reddit firehose access; it uses Reddit’s API with a 
 
 > **Want 24/7 alerts without leaving your PC on?** See
 > **[`DEPLOY_GITHUB_ACTIONS.md`](DEPLOY_GITHUB_ACTIONS.md)** — runs this bot on
-> a free GitHub Actions cron every 10 minutes, posts hits to your Discord, no
-> credit card, no VPS, no VPN required (Actions runners aren't blocked).
-> The same cron also publishes a **free static web dashboard** at
-> `https://<your-user>.github.io/<your-repo>/` so you can browse every offer
-> without scrolling Discord.
+> a free GitHub Actions cron, posts hits to your Discord, no credit card, no
+> VPS. The same cron publishes a **free static web dashboard** at
+> `https://<your-user>.github.io/<your-repo>/`.
+>
+> ⚠️ **Reddit blocks the GitHub Actions IP range on the public JSON endpoints**
+> (both `www.reddit.com` and `old.reddit.com` return `HTTP 403 Blocked`).
+> When running in Actions you **must** use OAuth — add four secrets to
+> `Settings > Secrets and variables > Actions`:
+>
+> - `REDDIT_CLIENT_ID` — 14-char string under your app name at
+>   <https://www.reddit.com/prefs/apps> (type **script**, redirect URI
+>   `http://localhost:8080`)
+> - `REDDIT_CLIENT_SECRET` — `secret` field of the same app
+> - `REDDIT_USERNAME` — your Reddit username
+> - `REDDIT_PASSWORD` — your Reddit password
+>
+> `reddit_intel/reddit_client.py::make_reddit()` switches to PRAW automatically
+> the moment all four exist. The bot also posts an `ACTION REQUIRED` heartbeat
+> to Discord whenever a cycle is 100% 403-blocked, so you'll never wonder why
+> the dashboard is frozen.
 
 ---
 
