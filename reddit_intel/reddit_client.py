@@ -26,6 +26,8 @@ from reddit_intel.config import (
     REDDIT_CLIENT_ID,
     REDDIT_CLIENT_SECRET,
     REDDIT_PASSWORD,
+    REDDIT_PUBLIC_MIN_INTERVAL_S,
+    REDDIT_PUBLIC_TIMEOUT_S,
     REDDIT_USER_AGENT,
     REDDIT_USERNAME,
 )
@@ -51,7 +53,11 @@ def make_reddit() -> Any:
             "rate-limited).",
             file=sys.stderr,
         )
-        return PublicReddit(user_agent=REDDIT_USER_AGENT)
+        return PublicReddit(
+            user_agent=REDDIT_USER_AGENT,
+            min_interval_s=REDDIT_PUBLIC_MIN_INTERVAL_S,
+            timeout_s=REDDIT_PUBLIC_TIMEOUT_S,
+        )
 
     if _have_oauth_creds():
         try:
@@ -89,4 +95,8 @@ def make_reddit() -> Any:
         "Set REDDIT_NO_AUTH=0 and fill .env to enable PRAW.",
         file=sys.stderr,
     )
-    return PublicReddit(user_agent=REDDIT_USER_AGENT)
+    return PublicReddit(
+        user_agent=REDDIT_USER_AGENT,
+        min_interval_s=REDDIT_PUBLIC_MIN_INTERVAL_S,
+        timeout_s=REDDIT_PUBLIC_TIMEOUT_S,
+    )

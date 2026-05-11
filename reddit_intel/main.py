@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 from pathlib import Path
@@ -24,6 +25,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Run a single fetch cycle over priority subs then exit",
     )
     parser.add_argument(
+        "--smoke",
+        action="store_true",
+        help="Quick connectivity test: 3 subs × 5 posts, no discovery (sets SMOKE_FETCH=1)",
+    )
+    parser.add_argument(
         "--daemon",
         action="store_true",
         help="Loop forever: fetch every BACKFILL_INTERVAL_SECONDS (default 300)",
@@ -40,6 +46,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Reporting window in hours (default 12)",
     )
     args = parser.parse_args(argv)
+
+    if args.smoke and args.daemon:
+        print("--smoke cannot be combined with --daemon", file=sys.stderr)
+        return 2
+    if args.smoke:
+        os.environ["SMOKE_FETCH"] = "1"
 
     db = Database()
 
@@ -60,7 +72,7 @@ def main(argv: list[str] | None = None) -> int:
         print(str(e), file=sys.stderr)
         return 1
 
-    if args.once or not args.daemon:
+    if args.once or args.smoke or not args.daemon:
         n = run_fetch_cycle(reddit, db)
         print(f"[cycle] ingested/processed {n} matching posts", file=sys.stderr)
         return 0

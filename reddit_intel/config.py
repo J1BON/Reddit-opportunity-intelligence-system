@@ -260,7 +260,19 @@ DISCOVERY_ENABLED = os.getenv("DISCOVERY_ENABLED", "1").strip().lower() in (
 )
 DISCOVERY_QUERIES_PER_TICK = max(1, int(os.getenv("DISCOVERY_QUERIES_PER_TICK", "8")))
 DISCOVERY_RESULTS_PER_QUERY = max(1, min(100, int(os.getenv("DISCOVERY_RESULTS_PER_QUERY", "30"))))
-DISCOVERY_TIME_FILTER = os.getenv("DISCOVERY_TIME_FILTER", "day").strip().lower()
+_tf = os.getenv("DISCOVERY_TIME_FILTER", "day").strip().lower()
+DISCOVERY_TIME_FILTER = (
+    _tf if _tf in ("hour", "day", "week", "month", "year", "all") else "day"
+)
+
+# Seconds between unauthenticated Reddit HTTP calls (floor 0.5). Lower only if
+# you accept more 429 risk (GitHub Actions default 4.0 is safe).
+REDDIT_PUBLIC_MIN_INTERVAL_S = max(
+    0.5, float(os.getenv("REDDIT_PUBLIC_MIN_INTERVAL_S", "4.0"))
+)
+REDDIT_PUBLIC_TIMEOUT_S = max(
+    3.0, float(os.getenv("REDDIT_PUBLIC_TIMEOUT_S", "20.0"))
+)
 
 # Each query is a high-signal phrase from the money-making vocabulary.
 # We rotate through these across cron ticks so every query gets exercised

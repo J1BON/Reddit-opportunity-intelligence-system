@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 from typing import TYPE_CHECKING, Any
@@ -891,6 +892,9 @@ def run_fetch_cycle(reddit: "praw.Reddit", db: Database) -> int:
     th.load_from_db(db)
     th.decay_tick_at_cycle_start()
 
+    smoke = os.getenv("SMOKE_FETCH", "").strip().lower() in ("1", "true", "yes", "on")
+    posts_cap = min(5, POSTS_PER_SUB_FETCH) if smoke else POSTS_PER_SUB_FETCH
+
     ranked_full = db.rank_subreddits_for_fetch(list(MONITORED_SUBREDDITS))
     ranked = _shard_subs(ranked_full)
     frac = th.deferral_fraction()
@@ -905,8 +909,18 @@ def run_fetch_cycle(reddit: "praw.Reddit", db: Database) -> int:
             db.enqueue_deferred_scan(s, priority=0, reason="api_pressure_budget")
 
     fetch_order = list(dict.fromkeys(recovery + ranked[:keep_n]))
+    if smoke:
+        fetch_order = fetch_order[:3]
+        print(
+            f"[smoke] subs={fetch_order} posts_per_sub={posts_cap} discovery=off",
+            flush=True,
+        )
 
-    fc_global = FETCH_COMMENT_SAMPLES and not th.force_skip_comments_entirely()
+    fc_global = (
+        (not smoke)
+        and FETCH_COMMENT_SAMPLES
+        and not th.force_skip_comments_entirely()
+    )
     cap = COMMENT_SAMPLE_LIMIT
     if th.should_reduce_comment_scanning():
         cap = max(4, COMMENT_SAMPLE_LIMIT // 3)
@@ -915,7 +929,7 @@ def run_fetch_cycle(reddit: "praw.Reddit", db: Database) -> int:
     # Once every 6 ticks (~1 hour at the 10-min cadence) we also scan /hot
     # for each sub to catch posts that exploded after we last saw them in
     # /new. /hot adds a single extra request per sub so we gate it.
-    scan_hot_this_tick = int(time.time() // 600) % 6 == 0
+    scan_hot_this_tick = (not smoke) and (int(time.time() // 600) % 6 == 0)
 
     # Site-wide discovery — runs every tick by default, picking a rotating
     # shard of high-signal queries. Imported here (and not at module top)
@@ -928,7 +942,7 @@ def run_fetch_cycle(reddit: "praw.Reddit", db: Database) -> int:
             try:
                 sub = reddit.subreddit(sub_name)
                 seen_ids: set[str] = set()
-                for post in sub.new(limit=POSTS_PER_SUB_FETCH):
+                for post in sub.new(limit=posts_cap):
                     pid = getattr(post, "name", None) or getattr(post, "id", "")
                     if pid:
                         seen_ids.add(str(pid))
@@ -939,7 +953,7 @@ def run_fetch_cycle(reddit: "praw.Reddit", db: Database) -> int:
                 if scan_hot_this_tick and hasattr(sub, "hot"):
                     time.sleep(th.sleep_backoff_seconds())
                     try:
-                        for post in sub.hot(limit=min(15, POSTS_PER_SUB_FETCH)):
+                        for post in sub.hot(limit=min(15, posts_cap)):
                             pid = getattr(post, "name", None) or getattr(post, "id", "")
                             if pid and str(pid) in seen_ids:
                                 continue
@@ -961,13 +975,13 @@ def run_fetch_cycle(reddit: "praw.Reddit", db: Database) -> int:
                     db.enqueue_deferred_scan(sub_name, priority=10, reason="rate_limit")
                 continue
 
-        # Site-wide discovery search — runs after the targeted sub scans so
-        # the API-pressure throttle has accurate state to work with.
-        try:
-            disc = run_discovery_cycle(reddit, db)
-            count += int(disc.get("ingested", 0))
-        except Exception as ex:  # noqa: BLE001
-            print(f"[engine] discovery cycle failed: {ex}", flush=True)
+        # Site-wide discovery — skipped in smoke mode (fast local check).
+        if not smoke:
+            try:
+                disc = run_discovery_cycle(reddit, db)
+                count += int(disc.get("ingested", 0))
+            except Exception as ex:  # noqa: BLE001
+                print(f"[engine] discovery cycle failed: {ex}", flush=True)
     finally:
         th.persist(db)
     return count
