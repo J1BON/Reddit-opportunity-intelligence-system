@@ -128,6 +128,10 @@ jobs:
         if: github.event_name != 'workflow_dispatch' || inputs.test_alert != 'true'
         env:
           REDDIT_NO_AUTH: "1"
+          # www.reddit.com 403s GitHub Actions IPs; old.reddit.com is sometimes
+          # served by a less aggressive edge. Falls back gracefully if the
+          # host is also blocked (errored_subs >0 in last_cycle_stats.json).
+          REDDIT_PUBLIC_BASE: "https://old.reddit.com"
           REDDIT_USER_AGENT: "USAOpportunityIntelBot/1.0 (GitHub Actions cron; +https://github.com/${{ github.repository }})"
           BACKFILL_INTERVAL_SECONDS: "1800"
           POSTS_PER_SUB_FETCH: "50"

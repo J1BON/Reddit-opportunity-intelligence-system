@@ -176,9 +176,13 @@ class PublicReddit:
     No OAuth, no app registration, no username/password. The trade-off is a
     much tighter shared rate limit (~10 req/min unauthenticated). We sleep
     ``min_interval_s`` seconds between calls and back off on 429s.
+
+    Host is overridable via the ``REDDIT_PUBLIC_BASE`` env var so we can swap
+    ``www.reddit.com`` for ``old.reddit.com`` (sometimes treated differently
+    by Reddit's anti-cloud-IP WAF) or any future mirror without code edits.
     """
 
-    BASE = "https://www.reddit.com"
+    DEFAULT_BASE = "https://www.reddit.com"
 
     def __init__(
         self,
@@ -193,6 +197,10 @@ class PublicReddit:
         self._min_interval = max(0.5, float(min_interval_s))
         self._timeout = float(timeout_s)
         self._last_call = 0.0
+        import os as _os
+
+        base = (_os.getenv("REDDIT_PUBLIC_BASE") or self.DEFAULT_BASE).strip().rstrip("/")
+        self._base = base or self.DEFAULT_BASE
 
     def subreddit(self, name: str) -> _Subreddit:
         return _Subreddit(self, name)
@@ -239,7 +247,7 @@ class PublicReddit:
         self._last_call = time.time()
 
     def _get_json(self, path: str, params: dict[str, str] | None = None) -> Any:
-        url = self.BASE + path
+        url = self._base + path
         if params:
             url = f"{url}?{urllib.parse.urlencode(params)}"
 
