@@ -898,6 +898,7 @@ def run_fetch_cycle(reddit: "praw.Reddit", db: Database) -> int:
     posts_seen = 0
     posts_429 = 0
     posts_errors = 0
+    error_samples: list[str] = []
     discovery_stats: dict[str, int] = {"queries": 0, "candidates": 0, "ingested": 0}
 
     ranked_full = db.rank_subreddits_for_fetch(list(MONITORED_SUBREDDITS))
@@ -992,10 +993,10 @@ def run_fetch_cycle(reddit: "praw.Reddit", db: Database) -> int:
                     posts_429 += 1
                 else:
                     posts_errors += 1
-                print(
-                    f"[fetch] r/{sub_name} ERROR ({type(ex).__name__}): {str(ex)[:160]}",
-                    flush=True,
-                )
+                err_msg = f"{type(ex).__name__}: {str(ex)[:200]}"
+                if len(error_samples) < 5:
+                    error_samples.append(f"r/{sub_name} {err_msg}")
+                print(f"[fetch] r/{sub_name} ERROR {err_msg}", flush=True)
                 continue
 
         # Site-wide discovery — skipped in smoke mode (fast local check).
@@ -1020,6 +1021,7 @@ def run_fetch_cycle(reddit: "praw.Reddit", db: Database) -> int:
             posts_429=posts_429,
             posts_errors=posts_errors,
             discovery=discovery_stats,
+            error_samples=error_samples,
         )
         _maybe_heartbeat(
             posts_seen=posts_seen,
@@ -1042,6 +1044,7 @@ def _persist_cycle_stats(
     posts_429: int,
     posts_errors: int,
     discovery: dict[str, int],
+    error_samples: list[str] | None = None,
 ) -> None:
     """Write a small JSON file with the just-finished cycle's stats so the
     cron commit picks it up. This is the only way to diagnose the cron
@@ -1057,6 +1060,7 @@ def _persist_cycle_stats(
         "posts_kept": posts_kept,
         "rate_limited_subs": posts_429,
         "errored_subs": posts_errors,
+        "error_samples": list(error_samples or []),
         "discovery": discovery,
     }
     try:
