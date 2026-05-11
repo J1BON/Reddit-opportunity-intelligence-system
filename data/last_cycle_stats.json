@@ -1,0 +1,35 @@
+{
+  "cycle_started_ts": 1778515730.4068992,
+  "cycle_started_utc": "2026-05-11T16:08:50Z",
+  "elapsed_seconds": 100.09,
+  "subs_attempted": 18,
+  "subs": [
+    "ReferralsCity",
+    "refferalsfordummies",
+    "UseMyReferral",
+    "ReferalLinks",
+    "beercash",
+    "beermoney",
+    "beermoneyglobal",
+    "BuildCapital",
+    "cash4signups",
+    "CryptoReferrals",
+    "EarnMoneyHub",
+    "easymoneyUSA",
+    "promocode",
+    "Referral",
+    "ReferralLink",
+    "ReferralLinksNation",
+    "ReferralTrains",
+    "signupsforpay"
+  ],
+  "posts_seen": 0,
+  "posts_kept": 0,
+  "rate_limited_subs": 0,
+  "errored_subs": 18,
+  "discovery": {
+    "queries": 8,
+    "candidates": 0,
+    "ingested": 0
+  }
+}
