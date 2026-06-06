@@ -1,8 +1,8 @@
 {
-  "cycle_started_ts": 1780778393.74817,
-  "cycle_started_utc": "2026-06-06T20:39:53Z",
-  "elapsed_seconds": 100.04,
-  "subs_attempted": 18,
+  "cycle_started_ts": 1780782228.7494156,
+  "cycle_started_utc": "2026-06-06T21:43:48Z",
+  "elapsed_seconds": 96.07,
+  "subs_attempted": 17,
   "subs": [
     "ReferralsCity",
     "refferalsfordummies",
@@ -16,17 +16,16 @@
     "CryptoReferrals",
     "EarnMoneyHub",
     "easymoneyUSA",
-    "promocode",
-    "Referral",
-    "ReferralLink",
-    "ReferralLinksNation",
-    "ReferralTrains",
-    "signupsforpay"
+    "PromoCodeShare",
+    "referralcodes",
+    "Referrallinks",
+    "ReferralLinksShare",
+    "Referring"
   ],
   "posts_seen": 0,
   "posts_kept": 0,
   "rate_limited_subs": 0,
-  "errored_subs": 18,
+  "errored_subs": 17,
   "error_samples": [
     "r/ReferralsCity HTTPError: HTTP Error 403: Blocked",
     "r/refferalsfordummies HTTPError: HTTP Error 403: Blocked",
