@@ -1,7 +1,7 @@
 {
-  "cycle_started_ts": 1786705849.741725,
-  "cycle_started_utc": "2026-08-14T11:10:49Z",
-  "elapsed_seconds": 96.04,
+  "cycle_started_ts": 1786708501.2555888,
+  "cycle_started_utc": "2026-08-14T11:55:01Z",
+  "elapsed_seconds": 96.2,
   "subs_attempted": 17,
   "subs": [
     "ReferralsCity",
@@ -16,11 +16,11 @@
     "CryptoReferrals",
     "EarnMoneyHub",
     "easymoneyUSA",
-    "PromoCodeShare",
-    "referralcodes",
-    "Referrallinks",
-    "ReferralLinksShare",
-    "Referring"
+    "ReferalCodes",
+    "referralforpay",
+    "ReferralLinks4",
+    "ReferralNotReferal",
+    "sidehustle"
   ],
   "posts_seen": 0,
   "posts_kept": 0,
